@@ -12,8 +12,6 @@ const ASSETS = ['index.html', 'app.css', 'app.js']
 const TOOL_TEXT_MAX = 4000
 const INPUT_MAX = 2000
 const FILE_MAX = 3_500_000 // data.js escapes it as JSON: stay under $.fs.write's 4 MiB
-const URL_COLOR = '#c4b5fd' // light, calm purple
-const ALIVE_MS = 5_000 // how often alive.js says the session is still running
 
 let dir: string | undefined
 let url: string | undefined // the page, as a file:// URL
@@ -285,44 +283,18 @@ export const register: Register = (on, options) => {
     lastMd = ''
     assetsVersion = ''
     url = `file://${dir.split('/').map(encodeURIComponent).join('/')}/index.html`
-    $.ui.invalidate('ui.render')
 
     await syncAssets($, dir)
     void refresh($)
 
-    // Long-lived work runs on the module's timers, not on this hook's
-    // dispatch: a heartbeat the page reads to tell a live session from an
-    // ended one.
-    const target = dir
-    const beat = async () => {
-      const now = await $.clock.now()
-      await $.fs.write(`${target}/alive.js`, `window.__mdpAlive(${now});\n`).catch(() => {})
-    }
-    void beat()
-    $.clock.every(ALIVE_MS, () => void beat())
-
     return started
-  })
-
-  // The preview's address at the end of the hint line under the prompt, in a
-  // calm purple (a $.ui.status line is drawn as a notice, which it is not).
-  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    const line = await next(e)
-    if (!url) return line
-    const { Box, Text } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="row">
-        {line}
-        <Text color={URL_COLOR}>{'  '}markdown: {url}</Text>
-      </Box>
-    )
   })
 
   on('command.run', { command: COMMAND }, async $ => {
     if (!url) return { text: 'The preview is not set up yet: try again in a moment.' }
     await refresh($)
-    await $.process.run(['open', url])
-    return { text: `Opened ${url}` }
+    const opened = await $.process.run(['open', url]).then(r => r.exitCode === 0, () => false)
+    return { text: opened ? `Opened ${url}` : `Open ${url} in your browser.` }
   })
 
   on('tool.call', async ($, e, next) => {

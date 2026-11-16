@@ -2,7 +2,7 @@
 
 A Claude Code mod that shows the current conversation as a live Markdown page in your browser. Its look is adapted from [nvim-md-preview](https://github.com/ywsrock/nvim-md-preview).
 
-After every tool call and at the end of every turn, the mod writes the conversation to `~/.claude/markdown-preview/<session-id>/` (as `conversation.md`, and as `data.js` for the page). The page is opened straight from that folder as a `file://` page, with no server: it reloads `data.js` every second and re-renders when the conversation changes. A small `alive.js` heartbeat turns the page's dot grey once the session ends.
+After every tool call and at the end of every turn, the mod writes the conversation to `~/.claude/markdown-preview/<session-id>/` (as `conversation.md`, and as `data.js` for the page). The page is opened straight from that folder as a `file://` page, with no server: it reloads `data.js` every second and re-renders when the conversation changes.
 
 ## Install
 
@@ -21,14 +21,14 @@ claude plugin install markdown-preview --marketplace ofirgall/claude-markdown-vi
 In the desktop app, where `/plugin` does not run: click **+** next to the prompt box, then **Plugins**, **Add marketplace** with `ofirgall/claude-markdown-viewer`, then **Add plugin**.
 
 Requirements:
-- macOS for `/markdown` to open the browser itself (it uses `open`). On other systems, open the address shown under the prompt yourself.
+- macOS for `/markdown` to open the browser itself (it uses `open`). On other systems, open the address `/markdown` prints yourself.
 - Internet access in the browser: the page loads marked, DOMPurify, highlight.js and mermaid from CDNs.
 
 ## Use
 
 - The page's title is the conversation's (its `/rename` title, else the one Claude Code generated). Beside it: the workspace, the git branch (linked to the repository), the branch's pull request when `gh` finds one, and the conversation's id (click to copy).
-- The line under the prompt ends with the preview's address, `markdown: file:///…/index.html`.
 - `/markdown` opens the page in your browser.
+- Diagrams pan and zoom: drag to pan, scroll (or pinch) over a diagram to zoom at the pointer, the corner buttons to zoom or reset, double-click to reset.
 
 The page shows one turn (a prompt and Claude's answer to it) at a time. That keeps it fast in long sessions: only the turn on screen is rendered, and it is re-rendered only when that turn changes. Each turn has previous / next buttons at its top and bottom, and the address ends in `#turn-N`, so a reload or a link opens the same turn.
 
@@ -41,6 +41,7 @@ On the page:
 | `f` | Follow: stay on the newest turn, scrolled to its end |
 | `e` | Expand or collapse all tool calls |
 | `w` | Cycle the content width: 50% → 70% → 95% (hover the ↔ button for a 50–100% slider) |
+| `r` | Refresh the page |
 | `j` / `k` (or `l` / `h`) | Next / previous turn |
 | `]` / `[` | Next / previous code block in the turn |
 | `}` / `{` | Next / previous diagram in the turn |

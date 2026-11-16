@@ -1,6 +1,6 @@
 {
   "name": "markdown-preview",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Live Markdown view of the Claude Code conversation in a browser previewer (styled after nvim-md-preview)",
   "author": {
     "name": "Ofir Gal",

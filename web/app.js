@@ -61,7 +61,7 @@
 
   // ---- content width: 50 / 70 / 95% presets on click, 50–100% on the hover slider
   const WIDTH_PRESETS = [50, 70, 95];
-  let width = 50;
+  let width = 70;
   function setWidth(pct) {
     width = Math.min(100, Math.max(50, Math.round(pct)));
     document.documentElement.style.setProperty('--w', String(width / 100));
@@ -74,7 +74,7 @@
   const cycleWidth = () => setWidth(WIDTH_PRESETS.find(p => p > width) ?? WIDTH_PRESETS[0]);
   $('wideBtn').onclick = cycleWidth;
   $('widthSlider').addEventListener('input', e => setWidth(Number(e.target.value)));
-  setWidth(Number(store.get('cp-width')) || 50);
+  setWidth(Number(store.get('cp-width')) || 70);
 
   // ---- tools expand/collapse
   let toolsOpen = false;
@@ -334,12 +334,94 @@
   });
   contentEl.addEventListener('toggle', () => updateNav(), true);
 
+  // ---- pan and zoom on each diagram: scrolling over it (or a pinch) zooms at
+  // the pointer, a drag pans, the corner buttons zoom and reset, and a
+  // double-click resets. The view is kept per diagram source, so a live
+  // re-render of the turn doesn't lose it.
+  const ZOOM_MIN = 0.2, ZOOM_MAX = 8, ZOOM_STEP = 1.25;
+  const views = new Map();
+  function panZoom(block) {
+    const svgEl = block.querySelector('svg');
+    if (!svgEl) return;
+    const key = block.dataset.source;
+    const stage = document.createElement('div');
+    stage.className = 'mmd-stage';
+    stage.append(svgEl);
+    const tools = document.createElement('div');
+    tools.className = 'mmd-tools';
+    const btn = (label, title, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = label; b.title = title;
+      b.onclick = e => { e.stopPropagation(); fn(); };
+      tools.append(b);
+      return b;
+    };
+    let v = views.get(key) || { x: 0, y: 0, k: 1 };
+    const apply = () => {
+      stage.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.k})`;
+      pct.textContent = `${Math.round(v.k * 100)}%`;
+      block.classList.toggle('mmd-moved', v.x !== 0 || v.y !== 0 || v.k !== 1);
+      if (v.x === 0 && v.y === 0 && v.k === 1) views.delete(key); else views.set(key, v);
+    };
+    // zoom by `f` keeping the point (px, py), relative to the stage's resting place, still
+    const zoomAt = (f, px, py) => {
+      const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v.k * f));
+      const r = k / v.k;
+      v = { k, x: px - (px - v.x) * r, y: py - (py - v.y) * r };
+      apply();
+    };
+    const center = () => ({ px: stage.offsetWidth / 2, py: stage.offsetHeight / 2 });
+    const reset = () => { v = { x: 0, y: 0, k: 1 }; apply(); };
+    btn('−', 'Zoom out (scroll)', () => { const c = center(); zoomAt(1 / ZOOM_STEP, c.px, c.py); });
+    const pct = btn('100%', 'Reset (or double-click the diagram)', reset);
+    pct.classList.add('mmd-pct');
+    btn('+', 'Zoom in (scroll)', () => { const c = center(); zoomAt(ZOOM_STEP, c.px, c.py); });
+    btn('⟲', 'Reset (or double-click the diagram)', reset);
+    block.replaceChildren(stage, tools);
+    block.classList.add('mmd-pz');
+    block.title = 'Drag to pan · scroll to zoom · double-click to reset';
+
+    const local = e => {
+      const r = block.getBoundingClientRect();
+      return { px: e.clientX - r.left - stage.offsetLeft, py: e.clientY - r.top - stage.offsetTop };
+    };
+    block.addEventListener('wheel', e => {
+      e.preventDefault();
+      const { px, py } = local(e);
+      // a mouse wheel's line steps are coarse, a pinch arrives as small ctrl+wheel steps
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.002)), px, py);
+    }, { passive: false });
+    let drag = null;
+    block.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || e.target.closest('.mmd-tools, a')) return;
+      drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: v.x, y: v.y };
+      block.setPointerCapture(e.pointerId);
+      block.classList.add('mmd-dragging');
+    });
+    block.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      v = { ...v, x: drag.x + e.clientX - drag.sx, y: drag.y + e.clientY - drag.sy };
+      apply();
+    });
+    const end = e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag = null;
+      block.classList.remove('mmd-dragging');
+    };
+    block.addEventListener('pointerup', end);
+    block.addEventListener('pointercancel', end);
+    block.addEventListener('dblclick', e => { if (!e.target.closest('.mmd-tools')) reset(); });
+    apply();
+  }
+
   async function renderMermaid(root) {
     if (!window.mermaid) return;
     for (const block of root.querySelectorAll('.mermaid-block')) {
       try {
         const { svg } = await mermaid.render(`mmd-${++mermaidCounter}`, block.dataset.source);
         block.innerHTML = svg;
+        panZoom(block);
       } catch (err) {
         block.innerHTML = '<div class="mermaid-error"></div>';
         block.firstChild.textContent = String(err && err.message || err).split('\n')[0];
@@ -611,6 +693,7 @@
     else if (e.key === 'f') setFollow(!follow);
     else if (e.key === 'e') $('toolsBtn').click();
     else if (e.key === 'w') cycleWidth();
+    else if (e.key === 'r') location.reload();
     else if (e.key === 'G') setFollow(true);
     else if (e.key === 'g') { setFollow(false, { noJump: true }); scrollTo({ top: 0 }); }
     else if (e.key === 'h') navigate('turn', -1);
@@ -732,12 +815,7 @@
   // compatibility for callers that re-render everything (theme switch)
   function render() { renderTurn({ force: true }); }
 
-  function setStatus(ok) {
-    const dot = $('statusDot');
-    dot.classList.toggle('connected', ok);
-    dot.classList.toggle('error', !ok);
-    dot.title = ok ? 'Live' : 'Disconnected (session ended?)';
-  }
+  $('refreshBtn').onclick = () => location.reload();
 
   // data.js carries the version of the page's own files: when the mod
   // rewrites them, reload to pick them up
@@ -796,11 +874,8 @@
   }
 
   // The page is opened as a file:// page, which can't fetch() files but can
-  // load scripts: the mod writes data.js (the conversation) and, every few
-  // seconds, alive.js (a heartbeat); each poll loads both again.
-  const ALIVE_STALE_MS = 15000;
-  let aliveAt = 0;
-  window.__mdpAlive = at => { aliveAt = at; };
+  // load scripts: the mod writes data.js (the conversation), and each poll
+  // loads it again.
   window.__mdpData = d => {
     checkVersion(d.version);
     showMeta(d.meta);
@@ -816,8 +891,7 @@
     });
   }
   async function poll() {
-    const [ok] = await Promise.all([load('data.js'), load('alive.js')]);
-    setStatus(ok && Date.now() - aliveAt < ALIVE_STALE_MS);
+    await load('data.js');
     setTimeout(poll, POLL_MS);
   }
   poll();
