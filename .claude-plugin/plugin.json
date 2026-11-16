@@ -16,6 +16,7 @@
       "default": "github",
       "options": [
         "github",
+        "github-dark-ofir",
         "catppuccin-mocha",
         "catppuccin-latte",
         "tokyo-night",

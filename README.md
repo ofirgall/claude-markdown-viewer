@@ -70,7 +70,7 @@ Set the mod's options in `/plugin` (Configure), or in `settings.json`:
 
 | Option | Default | |
 | --- | --- | --- |
-| `theme` | `github` | `github` (the original look; follows the system's light/dark mode), `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-day`, `gruvbox-dark`, `gruvbox-light`, `rose-pine`, `rose-pine-dawn`, `dracula`, `nord`. The page's light/dark button switches to its counterpart. |
+| `theme` | `github` | `github` (the original look; follows the system's light/dark mode), `github-dark-ofir` (`github` in dark mode with Claude Code's inline code `#cba6f7` and bold `#7a9cff`), `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-day`, `gruvbox-dark`, `gruvbox-light`, `rose-pine`, `rose-pine-dawn`, `dracula`, `nord`. The page's light/dark button switches to its counterpart. |
 | `inlineCodeColor` | theme | Text color of `` `inline code` ``. |
 | `strongColor` | theme | Text color of **bold** text. |
 | `customCss` | `~/.claude/convo-preview/custom.css` | A stylesheet loaded after all the others. It is re-read on every update, and the open page reloads when it changes. |
