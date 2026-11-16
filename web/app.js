@@ -401,7 +401,7 @@
   let searchAll = store.get('cp-search-all') === '1';
   const searchIn = { prompts: true, responses: true, tools: true, code: true, diagrams: true };
   try { Object.assign(searchIn, JSON.parse(store.get('cp-search-in') || '{}')); } catch { /* ignore */ }
-  const SKIP_TEXT = '.copy-btn,.code-lang,.anchor-link,svg,.turn-body>h2,.turn-nav,.mermaid-block';
+  const SKIP_TEXT = '.copy-btn,.prompt-more,.code-lang,.anchor-link,svg,.turn-body>h2,.turn-nav,.mermaid-block';
   // whether text under el is left out by the checkboxes (in the page or a turn's own rendering)
   // each text is of one kind: a tool call's, a code block's, a prompt's, or
   // else Claude's reply
@@ -551,6 +551,7 @@
     if (quiet) return;
     const target = hits[hitIdx];
     for (let d = target.closest('details'); d; d = d.parentElement.closest('details')) d.open = true;
+    target.closest('.user-prompt.collapsed')?.querySelector('.prompt-more')?.click();
     setFollow(false);
     target.scrollIntoView({ block: 'center' });
   }
@@ -624,6 +625,50 @@
 
   // ---- render: only the turn on screen
   const openKeys = new Set();
+  // Long prompts show their first 4 lines and a "Read more" toggle; the
+  // prompts opened stay open across re-renders (keyed by turn and index).
+  const openPrompts = new Set();
+  // The distance from the top of `box` to the bottom of its 4th rendered line
+  // of text, or null when it has 4 lines or fewer.
+  function fourthLineBottom(box) {
+    const top = box.getBoundingClientRect().top;
+    const lines = [];
+    const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n; (n = walker.nextNode());) {
+      if (!n.data.trim()) continue;
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) {
+        if (r.height && !lines.some(l => Math.abs(l.top - r.top) < r.height / 2)) lines.push({ top: r.top, bottom: r.bottom });
+      }
+    }
+    if (lines.length <= 4) return null;
+    lines.sort((a, b) => a.top - b.top);
+    return Math.ceil(lines[3].bottom - top);
+  }
+  function collapsePrompts(body) {
+    body.querySelectorAll('.user-prompt').forEach((el, i) => {
+      const key = `${cur}:${i}`;
+      const text = document.createElement('div');
+      text.className = 'prompt-text';
+      text.append(...el.childNodes);
+      el.append(text);
+      const cut = fourthLineBottom(text);
+      if (cut == null) return;
+      text.style.setProperty('--prompt-cut', `${cut}px`);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'prompt-more';
+      const set = open => {
+        el.classList.toggle('collapsed', !open);
+        btn.textContent = open ? 'Show less' : 'Read more';
+        if (open) openPrompts.add(key); else openPrompts.delete(key);
+      };
+      btn.onclick = () => set(el.classList.contains('collapsed'));
+      el.append(btn);
+      set(openPrompts.has(key));
+    });
+  }
   function renderTurn({ force = false } = {}) {
     $('loadingSkeleton').style.display = 'none';
     contentEl.style.display = '';
@@ -654,6 +699,7 @@
 
     contentEl.replaceChildren(turnNavBar('top'), body, turnNavBar('bottom'));
     addAnchors(body);
+    collapsePrompts(body);
 
     if (!$('searchBar').hidden && $('searchInput').value) runSearch($('searchInput').value, hitIdx);
     renderMermaid(body).then(() => {

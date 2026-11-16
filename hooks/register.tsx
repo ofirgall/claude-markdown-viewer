@@ -261,8 +261,50 @@ async function refresh($: EngineInterface) {
     if (md === lastWritten) return
     await $.fs.write(`${target}/conversation.md`, md)
     lastWritten = md
-  }).catch(err => $.ui.log(`markdown-preview: write failed: ${String(err)}`, { to: 'debug' }))
+  }).catch(err => $.ui.log(`write failed: ${String(err)}`, { to: 'debug' }))
   await writing
+}
+
+const WATCHDOG_MS = 10_000
+let preferredPort = 0
+let serving = false
+let lastError = ''
+
+// Runs python's http.server on the session's folder for as long as it lives;
+// a second call while one runs does nothing.
+async function startServer($: EngineInterface) {
+  if (serving || !dir || !preferredPort) return
+  serving = true
+  try {
+    for (const port of [preferredPort, preferredPort, preferredPort, preferredPort, 0]) {
+      let bound = false
+      try {
+        const server = $.process.spawn({
+          argv: ['python3', '-u', '-m', 'http.server', String(port), '--bind', '127.0.0.1', '--directory', dir],
+        })
+        for await (const piece of server) {
+          if (!('text' in piece) || bound) continue
+          const found = /port (\d+)/.exec(piece.text)?.[1]
+          if (found) {
+            bound = true
+            lastError = ''
+            url = `http://127.0.0.1:${found}/`
+            $.ui.invalidate('ui.render')
+          }
+        }
+        if (!bound) lastError = `python3 http.server exited on port ${port}`
+      } catch (err) {
+        lastError = String(err)
+        $.ui.log(`server failed: ${lastError}`, { to: 'debug' })
+      }
+      if (bound) break // it ran and then ended: the module unloaded or it died
+      await $.clock.sleep(500)
+    }
+  } finally {
+    serving = false
+    url = undefined
+    $.ui.invalidate('ui.render')
+  }
 }
 
 export const register: Register = (on, options) => {
@@ -291,35 +333,12 @@ export const register: Register = (on, options) => {
     // A port fixed per session, so the URL (and the page's saved settings,
     // which are per origin) survive reloads. Right after a reload the old
     // server may still hold it for a moment: retry, then fall back to any port.
-    const preferred = 40000 + (hashOf(id) % 20000)
-    const servedDir = dir
+    preferredPort = 40000 + (hashOf(id) % 20000)
 
-    // The server lives as long as this loop: the session, or until a reload.
-    void (async () => {
-      for (const port of [preferred, preferred, preferred, preferred, 0]) {
-        let bound = false
-        try {
-          const server = $.process.spawn({
-            argv: ['python3', '-u', '-m', 'http.server', String(port), '--bind', '127.0.0.1', '--directory', servedDir],
-          })
-          for await (const piece of server) {
-            if (!('text' in piece) || bound) continue
-            const found = /port (\d+)/.exec(piece.text)?.[1]
-            if (found) {
-              bound = true
-              url = `http://127.0.0.1:${found}/`
-              $.ui.invalidate('ui.render')
-            }
-          }
-        } catch (err) {
-          $.ui.log(`markdown-preview: server failed: ${String(err)}`, { to: 'debug' })
-        }
-        if (bound) break // it ran and then ended: the module unloaded or it died
-        await $.clock.sleep(500)
-      }
-      url = undefined
-      $.ui.invalidate('ui.render')
-    })()
+    // Long-lived work runs on the module's timers, not on this hook's
+    // dispatch: start the server now and keep checking that it is up.
+    $.clock.after(0, () => void startServer($))
+    $.clock.every(WATCHDOG_MS, () => void startServer($))
 
     return started
   })
@@ -339,7 +358,11 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: COMMAND }, async $ => {
-    if (!url) return { text: 'markdown-preview: the preview server is not running yet.' }
+    if (!url) {
+      void startServer($)
+      for (let i = 0; i < 20 && !url; i++) await $.clock.sleep(150)
+    }
+    if (!url) return { text: `The preview server is not running${lastError ? ` (${lastError})` : ''}.` }
     await refresh($)
     await $.process.run(['open', url])
     return { text: `Opened ${url}` }

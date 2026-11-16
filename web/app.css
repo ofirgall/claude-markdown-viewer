@@ -81,7 +81,12 @@ button.meta-chip{cursor:pointer;font-family:ui-monospace,SFMono-Regular,Menlo,mo
   background:var(--user-bg);border-radius:8px;color:var(--user-fg,var(--fg))}
 #content .user-prompt::before{content:">";position:absolute;left:.85em;top:.7em;
   color:var(--user-mark,var(--fg-muted));font-weight:600;font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
-#content .user-prompt>:last-child{margin-bottom:0}
+#content .user-prompt>:last-child,#content .user-prompt .prompt-text>:last-child{margin-bottom:0}
+#content .user-prompt.collapsed .prompt-text{max-height:var(--prompt-cut,6.4em);overflow:hidden;
+  -webkit-mask-image:linear-gradient(#000 calc(100% - .7em),transparent);mask-image:linear-gradient(#000 calc(100% - .7em),transparent)}
+#content .prompt-more{display:block;margin:.35em 0 0;padding:0;border:0;background:none;cursor:pointer;
+  font:inherit;font-size:.85em;font-weight:500;color:var(--user-mark,var(--accent,#8250df))}
+#content .prompt-more:hover{text-decoration:underline}
 #content h3{font-size:.95em;border-left:3px solid var(--color-h3);padding-left:.6em;margin:1.3em 0 .5em;color:var(--color-h3)}
 #content h4{font-size:1em;border-left:3px solid var(--color-h4);padding-left:.6em;margin:1.2em 0 .4em}
 #content :is(h5,h6){font-size:.875em;color:var(--fg-muted);padding-left:.6em;margin:1em 0 .4em}
