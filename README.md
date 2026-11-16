@@ -1,5 +1,7 @@
 # claude-markdown-viewer
 
+<img width="1287" height="998" alt="file-8cead5d4d476b97936fed3e944743bd7" src="https://github.com/user-attachments/assets/470890b2-50dd-494c-96f5-665753d4afe2" />
+
 A Claude Code mod that shows the current conversation as a live Markdown page in your browser. Its look is adapted from [nvim-md-preview](https://github.com/ywsrock/nvim-md-preview).
 
 After every tool call and at the end of every turn, the mod writes the conversation to `~/.claude/markdown-preview/<session-id>/` (as `conversation.md`, and as `data.js` for the page). The page is opened straight from that folder as a `file://` page, with no server: it reloads `data.js` every second and re-renders when the conversation changes.
