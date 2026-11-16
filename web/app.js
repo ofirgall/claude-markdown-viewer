@@ -234,7 +234,8 @@
     if (i !== turns.length - 1 && follow) setFollow(false, { noJump: true });
     cur = i;
     try { history.replaceState(null, '', `#turn-${i + 1}`); } catch { /* ignore */ }
-    renderTurn();
+    if (viewing) { viewing = null; fillFilesPanel(); }
+    renderTurn({ force: true });
     scrollTo({ top: toBottom || follow ? document.body.scrollHeight : 0 });
     updateNav();
     markActiveToc();
@@ -772,6 +773,9 @@
     else if (e.key === 'e') $('toolsBtn').click();
     else if (e.key === 'w') cycleWidth();
     else if (e.key === 'r') location.reload();
+    else if (e.key === 'F') togglePin();
+    else if (e.key === 'Escape' && document.body.classList.contains('files-peek')) unpeek();
+    else if (e.key === 'Escape' && viewing) closeFile();
     else if (e.key === 'G') setFollow(true);
     else if (e.key === 'g') { setFollow(false, { noJump: true }); scrollTo({ top: 0 }); }
     else if (e.key === 'h') navigate('turn', -1);
@@ -831,6 +835,7 @@
     });
   }
   function renderTurn({ force = false } = {}) {
+    if (viewing) return; // a file is on screen: the turn waits until it closes
     $('loadingSkeleton').style.display = 'none';
     contentEl.style.display = '';
     if (!turns.length) {
@@ -859,6 +864,7 @@
     body.querySelectorAll('details').forEach(d => { if (openKeys.has(detailsKey(d)) || toolsOpen) d.open = true; });
 
     contentEl.replaceChildren(turnNavBar('top'), body, turnNavBar('bottom'));
+    fillFilesPanel();
     addAnchors(body);
     collapsePrompts(body);
 
@@ -951,12 +957,157 @@
     } catch { /* not there yet */ }
   }
 
+  // ---- the files Claude edited: a header list (F), an "Edited" line at the
+  // end of each turn, and Markdown files opened in place of the turn, kept
+  // live from the copies the mod writes to files/<hash>.js
+  let edited = [];
+  let homeDir = '';
+  let filesKey = '';
+  let viewing = null; // { path, copy, md } while a file is on screen
+  const FILE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v5h5M9 13h6M9 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const shortPath = p => homeDir && p.startsWith(homeDir + '/') ? `~${p.slice(homeDir.length)}` : p;
+  const baseName = p => p.split('/').filter(Boolean).at(-1) || p;
+  const fileUrl = p => `file://${p.split('/').map(encodeURIComponent).join('/')}`;
+
+  function fileRow(f) {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    const name = document.createElement(f.copy ? 'button' : 'a');
+    name.className = 'file-name';
+    name.title = f.copy ? `Open ${f.path} here` : `Open ${f.path} in the browser`;
+    const dir = shortPath(f.path).slice(0, -baseName(f.path).length);
+    name.innerHTML = `${FILE_SVG}<span class="file-dir"></span><b></b>`;
+    name.querySelector('.file-dir').textContent = `\u200E${dir}\u200E`; // keeps ~ first in the right-to-left clip
+    name.querySelector('b').textContent = baseName(f.path);
+    if (f.copy) name.onclick = () => openFile(f);
+    else { name.href = fileUrl(f.path); name.target = '_blank'; name.rel = 'noopener'; }
+    row.append(name);
+    const side = document.createElement('span');
+    side.className = 'file-side';
+    const copy = document.createElement('button');
+    copy.className = 'file-copy'; copy.textContent = 'copy'; copy.title = 'Copy the path';
+    copy.onclick = () => navigator.clipboard?.writeText(f.path).then(() => {
+      copy.textContent = 'copied'; setTimeout(() => { copy.textContent = 'copy'; }, 1200);
+    });
+    side.append(copy);
+    row.append(side);
+    return row;
+  }
+
+  function showFiles(files, home) {
+    homeDir = home;
+    const key = JSON.stringify(files);
+    if (key === filesKey) return;
+    filesKey = key;
+    edited = files;
+    if (viewing) viewing.copy = files.find(f => f.path === viewing.path)?.copy ?? viewing.copy;
+    $('filesCtl').hidden = !files.length;
+    $('filesEdge').hidden = !files.length;
+    if (!files.length) setPanel(false);
+    fillFilesPanel();
+  }
+  // the panel lists the files edited in the turn on screen
+  function fillFilesPanel() {
+    const turn = turns[cur];
+    const n = turn ? parseInt(turn.title, 10) : NaN;
+    const list = edited.filter(f => f.turns.includes(n));
+    $('filesCount').textContent = String(list.length);
+    $('filesBtn').classList.toggle('none', !list.length);
+    const head = document.createElement('div');
+    head.className = 'files-head';
+    head.textContent = list.length ? `Turn ${n} · ${list.length} file${list.length === 1 ? '' : 's'} edited`
+      : `Turn ${Number.isNaN(n) ? '' : n} · no files edited`;
+    const rows = list.map(f => {
+      const row = fileRow(f);
+      if (viewing?.path === f.path) row.classList.add('current');
+      return row;
+    });
+    $('filesPanel').replaceChildren(head, ...rows);
+  }
+  // hover opens it (peek) until the pointer leaves; a click or F pins it
+  let peekTimer = 0;
+  function peek(on) {
+    clearTimeout(peekTimer);
+    if (on) document.body.classList.add('files-peek');
+    else peekTimer = setTimeout(() => document.body.classList.remove('files-peek'), 350);
+  }
+  function setPanel(pin) {
+    document.body.classList.toggle('files-pin', pin);
+    $('filesBtn').classList.toggle('active', pin);
+    store.set('cp-files', pin ? '1' : '0');
+    if (!pin) peek(false);
+  }
+  function unpeek() { // a file or a turn was picked: an unpinned panel gets out of the way
+    clearTimeout(peekTimer);
+    document.body.classList.remove('files-peek');
+  }
+  function togglePin() { setPanel(!document.body.classList.contains('files-pin')); }
+  for (const el of [$('filesBtn'), $('filesEdge'), $('filesPanel')]) {
+    el.addEventListener('mouseenter', () => peek(true));
+    el.addEventListener('mouseleave', () => peek(false));
+  }
+  $('filesBtn').onclick = togglePin;
+  if (store.get('cp-files') === '1') setPanel(true);
+
+  function openFile(f) {
+    unpeek();
+    closeDiagram();
+    viewing = { path: f.path, copy: f.copy, md: null };
+    fillFilesPanel();
+    setFollow(false, { noJump: true });
+    load(f.copy);
+  }
+  window.__mdpFile = d => {
+    if (!viewing || d.path !== viewing.path || d.md === viewing.md) return;
+    const first = viewing.md === null;
+    viewing.md = d.md;
+    showFile(first);
+  };
+  function showFile(first) {
+    const y = scrollY;
+    const bar = document.createElement('div');
+    bar.className = 'file-bar';
+    const back = document.createElement('button');
+    back.className = 'turn-nav-btn file-back';
+    back.textContent = `← Turn ${parseInt(turns[cur]?.title, 10) || ''}`;
+    back.title = 'Back to the conversation (Esc)';
+    back.onclick = closeFile;
+    const path = document.createElement('span');
+    path.className = 'file-path';
+    path.textContent = shortPath(viewing.path);
+    path.title = viewing.path;
+    const raw = document.createElement('a');
+    raw.className = 'file-raw'; raw.textContent = 'raw'; raw.href = fileUrl(viewing.path);
+    raw.target = '_blank'; raw.rel = 'noopener'; raw.title = 'Open the file itself';
+    bar.append(back, path, raw);
+    const body = document.createElement('div');
+    body.className = 'file-body';
+    body.innerHTML = DOMPurify.sanitize(marked.parse(viewing.md, { gfm: true, breaks: false }));
+    transformAlerts(body);
+    enhanceCode(body);
+    body.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+    contentEl.replaceChildren(bar, body);
+    addAnchors(body);
+    if (!$('searchBar').hidden && $('searchInput').value) runSearch($('searchInput').value, hitIdx);
+    renderMermaid(body).then(updateNav);
+    scrollTo({ top: first ? 0 : y });
+    updateNav();
+  }
+  function closeFile() {
+    if (!viewing) return;
+    viewing = null;
+    fillFilesPanel();
+    renderTurn({ force: true });
+    scrollTo({ top: 0 });
+  }
+
   // The page is opened as a file:// page, which can't fetch() files but can
   // load scripts: the mod writes data.js (the conversation), and each poll
   // loads it again.
   window.__mdpData = d => {
     checkVersion(d.version);
     showMeta(d.meta);
+    showFiles(d.files || [], d.home || '');
     if (d.md !== lastText) { lastText = d.md; applyText(d.md); }
   };
   function load(name) {
@@ -969,7 +1120,7 @@
     });
   }
   async function poll() {
-    await load('data.js');
+    await Promise.all([load('data.js'), viewing?.copy ? load(viewing.copy) : null]);
     setTimeout(poll, POLL_MS);
   }
   poll();

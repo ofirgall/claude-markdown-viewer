@@ -55,6 +55,43 @@ button.meta-chip{cursor:pointer;font-family:ui-monospace,SFMono-Regular,Menlo,mo
 .btn:hover{background:rgba(127,127,127,.1);color:var(--fg)}
 .btn.active{color:var(--accent);border-color:var(--accent)}
 .btn-text{width:auto;padding:.35rem .65rem}
+/* the files Claude edited */
+.files-ctl{position:relative}
+.files-ctl .btn{gap:.35rem;font-variant-numeric:tabular-nums}
+/* edited files: a right panel; hovering the button or the window's right edge
+   slides it in, leaving it slides it out, a click (or F) pins it open */
+.files-panel{position:fixed;top:3rem;bottom:0;right:0;z-index:6;width:min(400px,92vw);overflow-y:auto;
+  padding:.8rem .5rem 2rem;background:var(--panel);border-left:1px solid var(--stroke);
+  transform:translateX(100%);transition:transform .2s,box-shadow .2s}
+body.files-peek .files-panel{transform:none;box-shadow:-10px 0 30px rgba(0,0,0,.3)}
+body.files-pin .files-panel{transform:none}
+.files-edge{position:fixed;top:3rem;bottom:0;right:0;width:10px;z-index:4}
+@media(min-width:1300px){body.files-pin #content{max-width:min(calc(100vw * var(--w)),calc(100vw - 840px))}}
+.file-row.current{background:var(--badge-bg)}
+/* in the panel a row is the name, then its turns and copy on a line below */
+.files-panel .file-row{padding:.35rem .5rem}
+.files-ctl .btn.none{opacity:.55}
+.files-head{padding:.3rem .5rem .45rem;font-size:.75rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.5px}
+.file-row{display:flex;align-items:center;gap:.5rem;padding:.25rem .4rem;border-radius:6px}
+.file-row:hover{background:rgba(127,127,127,.08)}
+.file-name{display:flex;align-items:center;gap:.4rem;min-width:0;flex:1;padding:0;border:0;background:none;
+  color:var(--fg);font:inherit;font-size:.85rem;text-align:left;text-decoration:none;cursor:pointer}
+.file-name svg{flex-shrink:0;color:var(--fg-muted)}
+.file-name .file-dir{color:var(--fg-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;flex-shrink:1;min-width:0}
+.file-name b{font-weight:600;white-space:nowrap}
+#content .file-name b,.file-name b{color:var(--fg)}
+#content button.file-name b,button.file-name b{color:var(--accent)}
+#content a.file-name{text-decoration:none}
+.file-name:hover b{text-decoration:underline}
+.file-side{display:flex;gap:.25rem;flex-shrink:0}
+.file-copy{padding:.1rem .4rem;border:1px solid var(--stroke);border-radius:5px;background:none;
+  color:var(--fg-muted);font:inherit;font-size:.72rem;cursor:pointer;font-variant-numeric:tabular-nums}
+.file-copy:hover{color:var(--fg);background:rgba(127,127,127,.12)}
+.file-bar{position:sticky;top:3.6rem;z-index:5;display:flex;align-items:center;gap:.75rem;margin:0 0 1.5rem;padding:.5rem .6rem;
+  border:1px solid var(--stroke);border-radius:10px;background:var(--panel)}
+.file-bar .file-back{flex:0 0 auto}
+.file-path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem}
+.file-raw{font-size:.8rem;color:var(--fg-muted)}
 /* skeleton */
 .skeleton{padding:2rem;max-width:900px;margin:0 auto}
 .skeleton-line{height:14px;border-radius:6px;background:var(--skeleton);margin-bottom:12px;position:relative;overflow:hidden}
@@ -182,7 +219,7 @@ button.meta-chip{cursor:pointer;font-family:ui-monospace,SFMono-Regular,Menlo,mo
 #navBar .btn{width:28px;height:28px}
 #navBar .btn:disabled{opacity:.35;cursor:default}
 #navBar .nav-group.empty{opacity:.45}
-#toc{bottom:2.9rem}
+#toc,.files-panel,.files-edge{bottom:2.9rem}
 @media(max-width:560px){#navBar{gap:.5rem}#navBar .nav-label{display:none}}
 /* mermaid */
 .mermaid-block{position:relative;margin:1em 0;border:1px solid var(--stroke);border-radius:10px;background:var(--panel);overflow:auto;padding:1rem;display:flex;justify-content:center}

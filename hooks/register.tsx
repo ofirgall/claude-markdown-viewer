@@ -123,6 +123,51 @@ function toMarkdown(messages: readonly SessionMessage[], title: string): string 
   return md
 }
 
+// ---- the files Claude changed: each with the turns that changed it. The
+// page lists them, and opens the Markdown ones from copies the mod keeps in
+// files/<hash>.js (a file:// page can load scripts, not read files).
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+const MD_FILE = /\.(md|markdown|mdx)$/i
+const COPY_MAX = 2_000_000
+type EditedFile = { path: string; turns: number[]; edits: number; isMarkdown: boolean; copy?: string }
+
+function editedFiles(messages: readonly SessionMessage[]): EditedFile[] {
+  const files = new Map<string, EditedFile>()
+  let turn = 0
+  for (const m of messages) {
+    if (m.role === 'user') {
+      if (clean(m.text)) turn++
+      continue
+    }
+    for (const t of m.toolUses) {
+      if (!EDIT_TOOLS.has(t.tool) || t.isError) continue
+      const path = t.input.file_path ?? t.input.notebook_path
+      if (typeof path !== 'string' || !path) continue
+      const f = files.get(path) ?? { path, turns: [], edits: 0, isMarkdown: MD_FILE.test(path) }
+      f.edits++
+      if (f.turns.at(-1) !== turn) f.turns.push(turn)
+      files.set(path, f)
+    }
+  }
+  return [...files.values()]
+}
+
+// Copy each edited Markdown file the page may open, when its text changed.
+const copied = new Map<string, string>()
+async function copyMarkdown($: EngineInterface, target: string, files: EditedFile[]) {
+  for (const f of files) {
+    if (!f.isMarkdown) continue
+    const name = `files/${hashOf(f.path).toString(36)}.js`
+    const text = await $.fs.read(f.path).catch(() => undefined)
+    if (text === undefined || text.length > COPY_MAX) continue
+    f.copy = name
+    const stamp = `${hashOf(text)}:${text.length}`
+    if (copied.get(f.path) === stamp) continue
+    await $.fs.write(`${target}/${name}`, `window.__mdpFile(${JSON.stringify({ path: f.path, md: text })});\n`)
+    copied.set(f.path, stamp)
+  }
+}
+
 const hashOf = (s: string) => {
   let h = 0
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
@@ -253,7 +298,9 @@ async function refresh($: EngineInterface) {
     const [messages, cwd, info] = await Promise.all([$.session.messages(), $.session.cwd(), readMeta($)])
     const name = cwd.split('/').filter(Boolean).at(-1) ?? cwd
     const md = toMarkdown(messages, info.title || `Conversation · ${name}`)
-    const data = `window.__mdpData(${JSON.stringify({ version: assetsVersion, meta: info, md })});\n`
+    const files = editedFiles(messages)
+    await copyMarkdown($, target, files)
+    const data = `window.__mdpData(${JSON.stringify({ version: assetsVersion, meta: info, md, files, home })});\n`
     if (data === lastWritten) return
     await $.fs.write(`${target}/data.js`, data)
     if (md !== lastMd) await $.fs.write(`${target}/conversation.md`, md)
@@ -281,6 +328,7 @@ export const register: Register = (on, options) => {
     dir = `${home}/.claude/markdown-preview/${id}`
     lastWritten = ''
     lastMd = ''
+    copied.clear()
     assetsVersion = ''
     url = `file://${dir.split('/').map(encodeURIComponent).join('/')}/index.html`
 
