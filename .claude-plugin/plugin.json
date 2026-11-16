@@ -1,6 +1,6 @@
 {
   "name": "convo-preview",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Live Markdown view of the Claude Code conversation in a browser previewer (styled after nvim-md-preview)",
   "author": {
     "name": "Ofir Gal",

@@ -22,12 +22,13 @@ In the desktop app, where `/plugin` does not run: click **+** next to the prompt
 
 Requirements:
 - `python3` on your PATH.
-- macOS for `/markdown` to open the browser itself (it uses `open`). On other systems, open the URL from the status line yourself.
+- macOS for `/markdown` to open the browser itself (it uses `open`). On other systems, open the URL shown under the prompt yourself.
 - Internet access in the browser: the page loads marked, DOMPurify, highlight.js and mermaid from CDNs.
 
 ## Use
 
-- The status line shows the preview's address, `📄 http://127.0.0.1:<port>/`. The port is fixed for each session.
+- The page's title is the conversation's (its `/rename` title, else the one Claude Code generated). Beside it: the workspace, the git branch (linked to the repository), the branch's pull request when `gh` finds one, and the conversation's id (click to copy).
+- The line under the prompt ends with the preview's address, `markdown: http://127.0.0.1:<port>/`. The port is fixed for each session.
 - `/markdown` opens the page in your browser.
 
 The page shows one turn (a prompt and Claude's answer to it) at a time. That keeps it fast in long sessions: only the turn on screen is rendered, and it is re-rendered only when that turn changes. Each turn has previous / next buttons at its top and bottom, and the address ends in `#turn-N`, so a reload or a link opens the same turn.
@@ -37,7 +38,7 @@ On the page:
 | Key | Action |
 | --- | --- |
 | `t` | Turns sidebar (one entry per prompt; click to open that turn) |
-| `/` or `Ctrl+F` | Search the turn on screen |
+| `/` or `Ctrl+F` | Search the turn on screen, or every turn with "All turns" (`Alt+A`). The Prompts, Responses, Tools, Code and Diagrams boxes (`Alt+P`, `Alt+R`, `Alt+T`, `Alt+C`, `Alt+D`) include or leave out your prompts, Claude's replies, tool calls, code blocks and diagrams (matched by their source) |
 | `f` | Follow: stay on the newest turn, scrolled to its end |
 | `e` | Expand or collapse all tool calls |
 | `w` | Cycle the content width: 50% → 70% → 95% (hover the ↔ button for a 50–100% slider) |
@@ -70,7 +71,7 @@ Set the mod's options in `/plugin` (Configure), or in `settings.json`:
 
 | Option | Default | |
 | --- | --- | --- |
-| `theme` | `github` | `github` (the original look; follows the system's light/dark mode), `github-dark-ofir` (`github` in dark mode with Claude Code's inline code `#cba6f7` and bold `#7a9cff`), `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-day`, `gruvbox-dark`, `gruvbox-light`, `rose-pine`, `rose-pine-dawn`, `dracula`, `nord`. The page's light/dark button switches to its counterpart. |
+| `theme` | `github` | `github` (the original look; follows the system's light/dark mode), `github-dark-ofir` (`github` in dark mode with Claude Code's inline code `#cba6f7` and bold `#7a9cff`, and prompts on purple), `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-day`, `gruvbox-dark`, `gruvbox-light`, `rose-pine`, `rose-pine-dawn`, `dracula`, `nord`. The page's light/dark button switches to its counterpart. |
 | `inlineCodeColor` | theme | Text color of `` `inline code` ``. |
 | `strongColor` | theme | Text color of **bold** text. |
 | `customCss` | `~/.claude/convo-preview/custom.css` | A stylesheet loaded after all the others. It is re-read on every update, and the open page reloads when it changes. |
@@ -89,7 +90,7 @@ claude --plugin-dir /path/to/claude-markdown-viewer
 claude plugin validate /path/to/claude-markdown-viewer
 ```
 
-`hooks/register.ts` is the mod. `web/` holds the page (`index.html`, `app.css`, `app.js`).
+`hooks/register.tsx` is the mod, `hooks/themes.ts` its palettes. `web/` holds the page (`index.html`, `app.css`, `app.js`).
 
 ## License
 

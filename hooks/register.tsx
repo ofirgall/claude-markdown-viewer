@@ -10,6 +10,7 @@ const ASSETS = ['index.html', 'app.css', 'app.js']
 const TOOL_TEXT_MAX = 4000
 const INPUT_MAX = 2000
 const FILE_MAX = 3_800_000 // stay under $.fs.write's 4 MiB
+const URL_COLOR = '#c4b5fd' // light, calm purple
 
 let dir: string | undefined
 let url: string | undefined
@@ -71,24 +72,31 @@ function demoteHeadings(text: string): string {
 function toMarkdown(messages: readonly SessionMessage[], title: string): string {
   const out: string[] = [`# ${title}`, '']
   let turn = 0
-  let inAssistant = false
 
   for (const m of messages) {
     if (m.role === 'user') {
       const text = clean(m.text)
       if (!text) continue // tool results only: shown with their tool use
       turn++
-      inAssistant = false
-      out.push(`## ${turn}. ${oneLine(text.split('\n')[0] ?? '', 70) || 'User'}`, '', demoteHeadings(text), '')
+      // The heading splits turns and names them in the turn list; the page
+      // hides it and shows the prompt itself, in a block of its own.
+      out.push(
+        // the whole prompt on one line: the page cuts it where its box ends
+        `## ${turn}. ${oneLine(text, 400) || 'User'}`,
+        '',
+        '<div class="user-prompt">',
+        '',
+        demoteHeadings(text),
+        '',
+        '</div>',
+        '',
+      )
       continue
     }
 
-    if (!inAssistant) {
-      out.push('### Claude', '')
-      inAssistant = true
-    }
     const text = m.text.trim()
-    if (text) out.push(demoteHeadings(text), '')
+    // each of Claude's messages in a block the page marks with a bullet, as Claude Code does
+    if (text) out.push('<div class="assistant-msg">', '', demoteHeadings(text), '', '</div>', '')
 
     for (const t of m.toolUses) {
       const icon = t.isError ? '❌' : t.text === undefined && t.result === undefined ? '⏳' : '🔧'
@@ -157,14 +165,99 @@ async function syncAssets($: EngineInterface, target: string) {
   assetsVersion = version
 }
 
+// ---- the conversation's details for the page's header: its title, id,
+// workspace, git branch and the branch's pull request.
+type Meta = {
+  title: string | null
+  id: string
+  workspace: string
+  branch: string | null
+  repoUrl: string | null
+  pr: { number: number; title: string; url: string; state: string } | null
+}
+let transcript: string | null | undefined // the session's .jsonl, once found
+let meta: Meta | undefined
+let metaAt = 0
+let prKey = '' // branch the PR was looked up for, and when
+let prAt = 0
+let lastMeta = ''
+const META_MS = 5_000
+const PR_MS = 120_000
+
+async function findTranscript($: EngineInterface, id: string): Promise<string | null> {
+  const { stdout } = await $.process.run(['printenv', 'CLAUDE_CONFIG_DIR']).catch(() => ({ stdout: '' }))
+  const config = stdout.trim() || `${home}/.claude`
+  const found = await $.process.run(['find', `${config}/projects`, '-maxdepth', '2', '-name', `${id}.jsonl`])
+    .catch(() => ({ stdout: '' }))
+  return found.stdout.split('\n').find(Boolean) ?? null
+}
+
+// The title Claude Code shows for the session: one set with /rename, else
+// the one it generated. Both are lines in the transcript, the latest winning.
+async function readTitle($: EngineInterface, id: string): Promise<string | null> {
+  if (transcript === undefined) transcript = await findTranscript($, id)
+  if (!transcript) return null
+  const { stdout } = await $.process.run(['grep', '-E', '"type":"(custom-title|ai-title)"', transcript])
+    .catch(() => ({ stdout: '' }))
+  let custom: string | null = null
+  let ai: string | null = null
+  for (const line of stdout.split('\n')) {
+    if (!line) continue
+    try {
+      const row = JSON.parse(line) as { type?: string; customTitle?: string; aiTitle?: string; title?: string }
+      if (row.type === 'custom-title') custom = row.customTitle ?? row.title ?? custom
+      else if (row.type === 'ai-title') ai = row.aiTitle ?? row.title ?? ai
+    } catch { /* a line cut short: skip it */ }
+  }
+  return custom || ai
+}
+
+// owner/name's web address from an origin URL (https or ssh), for GitHub-like hosts
+const webUrl = (remote: string | null) => {
+  const m = remote && /^(?:https?:\/\/(?:[^@/]+@)?|ssh:\/\/(?:[^@/]+@)?|[^@/]+@)([^/:]+)[/:](.+?)(?:\.git)?\/?$/.exec(remote.trim())
+  return m ? `https://${m[1]}/${m[2]}` : null
+}
+
+async function readMeta($: EngineInterface): Promise<Meta> {
+  const now = await $.clock.now()
+  if (meta && now - metaAt < META_MS) return meta
+  const [id, cwd, repo] = await Promise.all([$.session.id(), $.session.cwd(), $.session.repo().catch(() => null)])
+  const [title, branchOut] = await Promise.all([
+    readTitle($, id),
+    $.process.run(['git', '-C', cwd, 'symbolic-ref', '--short', '-q', 'HEAD']).catch(() => ({ stdout: '' })),
+  ])
+  const branch = branchOut.stdout.trim() || null
+  let pr = meta?.pr ?? null
+  const key = `${cwd}\n${branch}`
+  if (branch && (key !== prKey || now - prAt > PR_MS)) {
+    prKey = key
+    prAt = now
+    const out = await $.process.run(['gh', 'pr', 'view', branch, '--json', 'number,title,url,state'], { cwd, timeoutMs: 15_000 })
+      .catch(() => ({ stdout: '' }))
+    try { pr = out.stdout.trim() ? JSON.parse(out.stdout) : null } catch { pr = null }
+  } else if (!branch) pr = null
+  meta = {
+    title, id,
+    workspace: cwd.startsWith(home + '/') ? `~${cwd.slice(home.length)}` : cwd,
+    branch, repoUrl: webUrl(repo?.remote ?? null), pr,
+  }
+  metaAt = now
+  return meta
+}
+
 async function refresh($: EngineInterface) {
   if (!dir) return
   const target = dir
   writing = writing.then(async () => {
     await syncAssets($, target)
-    const [messages, cwd] = await Promise.all([$.session.messages(), $.session.cwd()])
+    const [messages, cwd, info] = await Promise.all([$.session.messages(), $.session.cwd(), readMeta($)])
+    const metaText = JSON.stringify(info)
+    if (metaText !== lastMeta) {
+      await $.fs.write(`${target}/meta.json`, metaText)
+      lastMeta = metaText
+    }
     const name = cwd.split('/').filter(Boolean).at(-1) ?? cwd
-    const md = toMarkdown(messages, `Conversation · ${name}`)
+    const md = toMarkdown(messages, info.title || `Conversation · ${name}`)
     if (md === lastWritten) return
     await $.fs.write(`${target}/conversation.md`, md)
     lastWritten = md
@@ -215,7 +308,7 @@ export const register: Register = (on, options) => {
             if (found) {
               bound = true
               url = `http://127.0.0.1:${found}/`
-              $.ui.status(`📄 ${url}`)
+              $.ui.invalidate('ui.render')
             }
           }
         } catch (err) {
@@ -225,10 +318,24 @@ export const register: Register = (on, options) => {
         await $.clock.sleep(500)
       }
       url = undefined
-      $.ui.status(undefined)
+      $.ui.invalidate('ui.render')
     })()
 
     return started
+  })
+
+  // The preview's address at the end of the hint line under the prompt, in a
+  // calm purple (a $.ui.status line is drawn as a notice, which it is not).
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    const line = await next(e)
+    if (!url) return line
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="row">
+        {line}
+        <Text color={URL_COLOR}>{'  '}markdown: {url}</Text>
+      </Box>
+    )
   })
 
   on('command.run', { command: COMMAND }, async $ => {

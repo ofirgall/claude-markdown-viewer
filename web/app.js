@@ -392,19 +392,121 @@
   $('tocBtn').onclick = () => { document.body.classList.toggle('toc-open'); store.set('cp-toc', document.body.classList.contains('toc-open') ? '1' : '0'); };
   if (store.get('cp-toc') === '1') document.body.classList.add('toc-open');
 
-  // ---- search
+  // ---- search: the turn on screen, or every turn ("All turns"), in text and,
+  // each by its own box, tool calls, code blocks and diagrams (one hit per
+  // diagram whose source matches). Only one turn is in the page, so the others
+  // are counted from their own rendering (cached), and stepping past this
+  // turn's last hit opens the next turn with one.
   let hits = [], hitIdx = -1;
+  let searchAll = store.get('cp-search-all') === '1';
+  const searchIn = { prompts: true, responses: true, tools: true, code: true, diagrams: true };
+  try { Object.assign(searchIn, JSON.parse(store.get('cp-search-in') || '{}')); } catch { /* ignore */ }
+  const SKIP_TEXT = '.copy-btn,.code-lang,.anchor-link,svg,.turn-body>h2,.turn-nav,.mermaid-block';
+  // whether text under el is left out by the checkboxes (in the page or a turn's own rendering)
+  // each text is of one kind: a tool call's, a code block's, a prompt's, or
+  // else Claude's reply
+  function leftOut(el) {
+    if (el?.closest('details.tool,details.tool-group>summary')) return !searchIn.tools;
+    if (el?.closest('pre')) return !searchIn.code;
+    if (el?.closest('.user-prompt')) return !searchIn.prompts;
+    return !searchIn.responses;
+  }
+  const textCache = new Map(); // turn md -> { texts: [{ text, el }], diagrams: [source] }, lowercased
+  function turnParts(md) {
+    let parts = textCache.get(md);
+    if (parts) return parts;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = DOMPurify.sanitize(marked.parse(md, { gfm: true, breaks: false }));
+    tpl.content.querySelector('h2')?.remove();
+    const diagrams = [];
+    tpl.content.querySelectorAll('code.language-mermaid').forEach(c => {
+      diagrams.push(c.textContent.toLowerCase());
+      c.closest('pre')?.remove();
+    });
+    const texts = [];
+    const w = document.createTreeWalker(tpl.content, NodeFilter.SHOW_TEXT);
+    while (w.nextNode()) texts.push({ text: w.currentNode.textContent.toLowerCase(), el: w.currentNode.parentElement });
+    parts = { texts, diagrams };
+    if (textCache.size > 500) textCache.clear();
+    textCache.set(md, parts);
+    return parts;
+  }
+  function countIn({ texts, diagrams }, needle) {
+    let n = 0;
+    for (const { text, el } of texts) {
+      if (leftOut(el)) continue;
+      for (let i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length)) n++;
+    }
+    if (searchIn.diagrams) n += diagrams.filter(d => d.includes(needle)).length;
+    return n;
+  }
+  // hits per turn; the turn on screen counts what is marked in the page
+  function turnCounts(needle) {
+    return turns.map((t, i) => (i === cur ? hits.length : countIn(turnParts(t.md), needle)));
+  }
+  function showCount() {
+    const q = $('searchInput').value.toLowerCase();
+    if (!q) { $('searchCount').textContent = ''; return; }
+    if (!searchAll) { $('searchCount').textContent = hits.length ? `${hitIdx + 1}/${hits.length}` : '0/0'; return; }
+    const counts = turnCounts(q);
+    const total = counts.reduce((a, b) => a + b, 0);
+    const before = counts.slice(0, cur).reduce((a, b) => a + b, 0);
+    const inTurns = counts.filter(Boolean).length;
+    $('searchCount').textContent = total
+      ? `${hits.length ? before + hitIdx + 1 : '–'}/${total} · ${inTurns} turn${inTurns === 1 ? '' : 's'}`
+      : '0/0';
+  }
+  // the nearest other turn with a hit, stepping by dir (wrapping)
+  function turnWithHit(dir, needle) {
+    for (let k = 1; k < turns.length; k++) {
+      const t = (cur + dir * k + turns.length * k) % turns.length;
+      if (countIn(turnParts(turns[t].md), needle)) return t;
+    }
+    return -1;
+  }
+  function jumpTurnHit(dir) {
+    const q = $('searchInput').value;
+    const t = turnWithHit(dir, q.toLowerCase());
+    if (t < 0) return false;
+    goTurn(t);
+    runSearch(q, null, { first: dir > 0 ? 0 : -1 });
+    return true;
+  }
+  function stepHit(dir) {
+    const next = hitIdx + dir;
+    if (searchAll && (!hits.length || next < 0 || next >= hits.length) && jumpTurnHit(dir)) return;
+    gotoHit(next);
+  }
+  function rerunSearch() { if ($('searchInput').value) runSearch($('searchInput').value); }
+  function setSearchAll(on) {
+    searchAll = on;
+    store.set('cp-search-all', on ? '1' : '0');
+    $('searchAll').checked = on;
+    $('searchInput').placeholder = on ? 'Search all turns…' : 'Search this turn…';
+    rerunSearch();
+  }
+  const SEARCH_BOXES = { prompts: 'searchPrompts', responses: 'searchResponses', tools: 'searchTools', code: 'searchCode', diagrams: 'searchDiagrams' };
+  function setSearchIn(kind, on) {
+    searchIn[kind] = on;
+    store.set('cp-search-in', JSON.stringify(searchIn));
+    $(SEARCH_BOXES[kind]).checked = on;
+    rerunSearch();
+  }
   function clearSearch() {
     contentEl.querySelectorAll('mark.search-hit').forEach(m => m.replaceWith(document.createTextNode(m.textContent)));
+    contentEl.querySelectorAll('.search-hit-block').forEach(b => b.classList.remove('search-hit-block', 'current'));
     contentEl.normalize();
     hits = []; hitIdx = -1;
   }
-  function runSearch(q, keepIdx) {
+  // keepIdx: a re-render keeps the place quietly; first: 0 or -1 picks the
+  // first or last hit (a turn opened by stepping)
+  function runSearch(q, keepIdx, { first } = {}) {
     clearSearch();
     if (!q) { $('searchCount').textContent = ''; return; }
     const needle = q.toLowerCase();
     const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT, {
-      acceptNode: n => n.parentElement.closest('.copy-btn,.code-lang,.anchor-link,svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+      acceptNode: n => n.parentElement.closest(SKIP_TEXT) || leftOut(n.parentElement)
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
     });
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
@@ -427,17 +529,28 @@
       frag.appendChild(document.createTextNode(text.slice(last)));
       node.replaceWith(frag);
     }
-    gotoHit(keepIdx != null && keepIdx < hits.length ? keepIdx : 0, keepIdx != null);
+    if (searchIn.diagrams) {
+      for (const block of contentEl.querySelectorAll('.mermaid-block')) {
+        if (!(block.dataset.source || '').toLowerCase().includes(needle)) continue;
+        block.classList.add('search-hit-block');
+        hits.push(block);
+      }
+      hits.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    }
+    if (keepIdx != null) { gotoHit(keepIdx < hits.length ? keepIdx : 0, true); return; }
+    if (first != null) { gotoHit(first < 0 ? hits.length - 1 : 0); return; }
+    // typing in "All turns" with no hit here: go to the nearest turn that has one
+    if (searchAll && !hits.length && jumpTurnHit(1)) return;
+    gotoHit(0);
   }
   function gotoHit(i, quiet) {
-    if (!hits.length) { $('searchCount').textContent = '0/0'; return; }
+    if (!hits.length) { showCount(); return; }
     hitIdx = (i + hits.length) % hits.length;
     hits.forEach((h, j) => h.classList.toggle('current', j === hitIdx));
-    $('searchCount').textContent = `${hitIdx + 1}/${hits.length}`;
+    showCount();
     if (quiet) return;
     const target = hits[hitIdx];
-    const det = target.closest('details');
-    if (det) det.open = true;
+    for (let d = target.closest('details'); d; d = d.parentElement.closest('details')) d.open = true;
     setFollow(false);
     target.scrollIntoView({ block: 'center' });
   }
@@ -445,11 +558,45 @@
   function closeSearch() { $('searchBar').hidden = true; clearSearch(); $('searchInput').value = ''; $('searchCount').textContent = ''; }
   $('searchBtn').onclick = () => ($('searchBar').hidden ? openSearch() : closeSearch());
   $('searchClose').onclick = closeSearch;
-  $('searchNext').onclick = () => gotoHit(hitIdx + 1);
-  $('searchPrev').onclick = () => gotoHit(hitIdx - 1);
+  $('searchNext').onclick = () => stepHit(1);
+  $('searchPrev').onclick = () => stepHit(-1);
+  $('searchAll').onchange = e => setSearchAll(e.target.checked);
+  setSearchAll(searchAll);
+  // the tip under the options: what the hovered (or focused) one covers, with
+  // its part of a small mock turn lit
+  const tip = $('searchTip');
+  function showTip(opt) {
+    if (!opt) { tip.hidden = true; return; }
+    const name = opt.querySelector('span:not([class]),.sw-on')?.textContent;
+    const scope = opt.dataset.kind === 'all';
+    const text = tip.querySelector('.tip-text');
+    text.replaceChildren();
+    const title = document.createElement('strong');
+    title.textContent = scope ? (searchAll ? 'Scope: all turns' : 'Scope: this turn') : name;
+    text.append(title, opt.dataset.tip);
+    tip.querySelector('.tip-demo').dataset.focus = scope ? (searchAll ? 'all' : 'this') : opt.dataset.kind;
+    tip.hidden = false;
+  }
+  $('searchBar').querySelectorAll('[data-tip]').forEach(opt => {
+    opt.addEventListener('mouseenter', () => showTip(opt));
+    opt.addEventListener('focusin', () => showTip(opt));
+    opt.addEventListener('change', () => showTip(opt));
+  });
+  $('searchBar').addEventListener('mouseleave', () => { if (!$('searchBar').querySelector('[data-tip]:focus-within')) showTip(null); });
+  $('searchBar').addEventListener('focusout', e => { if (!$('searchBar').contains(e.relatedTarget)) showTip(null); });
+  for (const [kind, id] of Object.entries(SEARCH_BOXES)) {
+    $(id).checked = searchIn[kind];
+    $(id).onchange = e => setSearchIn(kind, e.target.checked);
+  }
   $('searchInput').addEventListener('input', e => runSearch(e.target.value));
   $('searchInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); gotoHit(hitIdx + (e.shiftKey ? -1 : 1)); }
+    if (e.key === 'Enter') { e.preventDefault(); stepHit(e.shiftKey ? -1 : 1); }
+    if (e.altKey && e.code === 'KeyA') { e.preventDefault(); setSearchAll(!searchAll); }
+    if (e.altKey && e.code === 'KeyP') { e.preventDefault(); setSearchIn('prompts', !searchIn.prompts); }
+    if (e.altKey && e.code === 'KeyR') { e.preventDefault(); setSearchIn('responses', !searchIn.responses); }
+    if (e.altKey && e.code === 'KeyT') { e.preventDefault(); setSearchIn('tools', !searchIn.tools); }
+    if (e.altKey && e.code === 'KeyC') { e.preventDefault(); setSearchIn('code', !searchIn.code); }
+    if (e.altKey && e.code === 'KeyD') { e.preventDefault(); setSearchIn('diagrams', !searchIn.diagrams); }
     if (e.key === 'Escape') closeSearch();
   });
 
@@ -558,8 +705,60 @@
     } catch { /* offline: poll() shows it */ }
   }
 
+  // ---- the conversation's details (meta.json, written by the mod)
+  const ICON = {
+    ws: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-11.3 7.4"/>',
+    pr: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17V9a2 2 0 0 0-2-2h-4m2-3-3 3 3 3"/>',
+    id: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+  };
+  const svg = name => `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[name]}</svg>`;
+  function chip(tag, cls, icon, text, title) {
+    const el = document.createElement(tag);
+    el.className = `meta-chip ${cls}`;
+    el.innerHTML = svg(icon);
+    const span = document.createElement('span');
+    span.textContent = text;
+    el.append(span);
+    el.title = title;
+    return el;
+  }
+  let lastMetaText = null;
+  async function pollMeta() {
+    try {
+      const res = await fetch('meta.json', { cache: 'no-store' });
+      if (!res.ok) return;
+      const text = await res.text();
+      if (text === lastMetaText) return;
+      lastMetaText = text;
+      const m = JSON.parse(text);
+      const items = [];
+      if (m.workspace) items.push(chip('span', 'meta-ws', 'ws', m.workspace.split('/').filter(Boolean).at(-1) || m.workspace, `Workspace: ${m.workspace}`));
+      if (m.branch) {
+        const b = chip(m.repoUrl ? 'a' : 'span', 'meta-branch', 'branch', m.branch, `Branch: ${m.branch}`);
+        if (m.repoUrl) { b.href = `${m.repoUrl}/tree/${m.branch.split('/').map(encodeURIComponent).join('/')}`; b.target = '_blank'; b.rel = 'noopener noreferrer'; }
+        items.push(b);
+      }
+      if (m.pr && /^https?:\/\//.test(m.pr.url)) {
+        const state = String(m.pr.state || '').toLowerCase();
+        const p = chip('a', `meta-pr pr-${state}`, 'pr', `#${m.pr.number}`, `PR #${m.pr.number} (${state}): ${m.pr.title}`);
+        p.href = m.pr.url; p.target = '_blank'; p.rel = 'noopener noreferrer';
+        items.push(p);
+      }
+      if (m.id) {
+        const c = chip('button', 'meta-id', 'id', m.id.slice(0, 8), `Conversation ${m.id}: click to copy`);
+        c.onclick = () => navigator.clipboard?.writeText(m.id).then(() => {
+          c.classList.add('copied'); setTimeout(() => c.classList.remove('copied'), 1200);
+        });
+        items.push(c);
+      }
+      $('meta').replaceChildren(...items);
+    } catch { /* not there yet */ }
+  }
+
   async function poll() {
     checkVersion();
+    pollMeta();
     try {
       const res = await fetch('conversation.md', { cache: 'no-store' });
       if (!res.ok) throw new Error(res.status);

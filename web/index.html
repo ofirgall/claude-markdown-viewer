@@ -15,6 +15,7 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h10M4 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
     <h1 id="title">Conversation</h1>
+    <div id="meta" class="meta"></div>
     <span id="updated" class="updated"></span>
     <button id="toolsBtn" class="btn btn-text" title="Expand / collapse all tool calls (e)">Tools</button>
     <div id="widthCtl" class="width-ctl">
@@ -46,11 +47,59 @@
 
   <nav id="toc" aria-label="Turns"></nav>
   <div id="searchBar" hidden>
-    <input id="searchInput" type="search" placeholder="Search this turn…" autocomplete="off">
-    <span id="searchCount"></span>
-    <button id="searchPrev" class="btn" title="Previous (Shift+Enter)">↑</button>
-    <button id="searchNext" class="btn" title="Next (Enter)">↓</button>
-    <button id="searchClose" class="btn" title="Close (Esc)">✕</button>
+    <div class="search-row">
+      <div class="search-field">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="searchInput" type="search" placeholder="Search this turn…" autocomplete="off">
+        <span id="searchCount"></span>
+      </div>
+      <button id="searchPrev" class="btn" title="Previous match (Shift+Enter)">↑</button>
+      <button id="searchNext" class="btn" title="Next match (Enter)">↓</button>
+      <button id="searchClose" class="btn" title="Close (Esc)">✕</button>
+    </div>
+    <div class="search-section">
+      <span class="search-heading">Scope</span>
+      <label class="search-switch" data-kind="all" data-tip="Off: only the turn on screen. On: every turn; stepping past a turn’s last match opens the next turn that has one.">
+        <span class="sw-side sw-off">This turn</span>
+        <input id="searchAll" type="checkbox"><span class="sw-track"><span class="sw-knob"></span></span>
+        <span class="sw-side sw-on">All turns</span>
+        <kbd>⌥A</kbd>
+      </label>
+    </div>
+    <div class="search-section">
+      <span class="search-heading">Search in</span>
+      <div class="search-chips">
+      <label class="search-chip" data-kind="prompts" data-tip="What you typed, from the purple blocks marked with “&gt;”.">
+        <input id="searchPrompts" type="checkbox"><svg class="chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5"/><path d="M13 17h6"/></svg><span>Prompts</span><kbd>⌥P</kbd>
+      </label>
+      <label class="search-chip" data-kind="responses" data-tip="Claude’s replies, the text after each bullet, inline code included. Their code blocks and diagrams follow their own boxes.">
+        <input id="searchResponses" type="checkbox"><svg class="chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg><span>Responses</span><kbd>⌥R</kbd>
+      </label>
+      <label class="search-chip" data-kind="tools" data-tip="Tool calls: the name and summary line, the input and the output.">
+        <input id="searchTools" type="checkbox"><svg class="chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4 2.5-2.5Z"/></svg><span>Tools</span><kbd>⌥T</kbd>
+      </label>
+      <label class="search-chip" data-kind="code" data-tip="Fenced code blocks in prompts and replies. Inline code counts as text.">
+        <input id="searchCode" type="checkbox"><svg class="chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="m13.5 5-3 14"/></svg><span>Code</span><kbd>⌥C</kbd>
+      </label>
+      <label class="search-chip" data-kind="diagrams" data-tip="Mermaid diagrams, matched by their source; a matching diagram is outlined as one hit.">
+        <input id="searchDiagrams" type="checkbox"><svg class="chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="16" width="7" height="5" rx="1"/><path d="M6.5 8v4.5h11V16"/></svg><span>Diagrams</span><kbd>⌥D</kbd>
+      </label>
+      </div>
+    </div>
+    <div id="searchTip" class="search-tip" hidden>
+      <div class="tip-text"></div>
+      <div class="tip-demo" aria-hidden="true">
+        <div class="demo-turn demo-cur">
+          <div class="demo-prompt" data-part="prompts">&gt; why does the build fail?</div>
+          <div class="demo-reply" data-part="responses"><i></i>The lockfile is out of date.</div>
+          <div class="demo-tool" data-part="tools">🔧 Bash — npm ci</div>
+          <div class="demo-code" data-part="code"><b>npm</b> install --save-dev</div>
+          <div class="demo-diagram" data-part="diagrams"><span>lock</span><em></em><span>build</span></div>
+        </div>
+        <div class="demo-turn demo-other"><div></div><div></div><div></div></div>
+        <div class="demo-turn demo-other"><div></div><div></div></div>
+      </div>
+    </div>
   </div>
   <main id="content" style="display:none"></main>
 

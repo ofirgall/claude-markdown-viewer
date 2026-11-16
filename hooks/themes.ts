@@ -30,7 +30,14 @@ export const DEFAULT_THEME = 'github'
 type Variant = { mode: 'dark' | 'light'; vars: Record<string, string> }
 const VARIANTS: Record<string, Variant> = {
   // github's dark mode with Claude Code's inline code and bold colors
-  'github-dark-ofir': { mode: 'dark', vars: { 'inline-code': '#cba6f7', strong: '#7a9cff' } },
+  // and its prompts on a purple background
+  'github-dark-ofir': {
+    mode: 'dark',
+    vars: {
+      'inline-code': '#cba6f7', strong: '#7a9cff',
+      'user-bg': 'color-mix(in srgb, #cba6f7 16%, transparent)', 'user-mark': '#cba6f7', 'assistant-mark': '#cba6f7',
+    },
+  },
 }
 
 // A color goes into CSS as given only if it looks like one: hex, rgb()/hsl()…, or a name.
@@ -56,7 +63,7 @@ function vars(p: Palette): string {
     'color-h5': p.yellow, 'color-h6': p.muted,
     'color-note': p.blue, 'color-tip': p.green, 'color-important': p.purple,
     'color-warning': p.yellow, 'color-caution': p.red,
-    'user-bg': `color-mix(in srgb, ${p.purple} 8%, transparent)`,
+    'user-bg': `color-mix(in srgb, ${p.purple} 8%, transparent)`, 'assistant-mark': p.purple,
     'diff-add': p.green, 'diff-mod': p.yellow, 'diff-del': p.red,
   }
   return Object.entries(v).map(([k, val]) => `--${k}:${val};`).join('')
