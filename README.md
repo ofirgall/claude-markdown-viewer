@@ -18,7 +18,7 @@ Or from a shell: `claude plugin install markdown-preview --marketplace ofirgall/
 
 The page shows one turn (a prompt and its answer) at a time, live as it grows. The header has the conversation's title, workspace, git branch, pull request and id.
 
-- **Diagrams:** drag to pan, Ctrl/⌘ + scroll or pinch to zoom. ⛶ or a double-click opens one full screen, where ‹ › or ←/→ step through the turn's diagrams.
+- **Diagrams:** each is titled by the closest heading above it. Drag to pan, Ctrl/⌘ + scroll or pinch to zoom. ⛶ or a double-click opens one full screen, where ‹ › or ←/→ step through the turn's diagrams.
 - **Tool calls** in a row fold into one group; each call opens to its input and output.
 - **Long prompts** collapse after 4 lines behind "Read more".
 - **Edited files:** the files Claude edited in the turn on screen are in a right panel. Hover the window's right edge or the header's file button to open it; click the button or press `F` to keep it open. Markdown files open rendered in the page, live as Claude edits them.

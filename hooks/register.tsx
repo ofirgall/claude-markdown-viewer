@@ -65,7 +65,12 @@ function demoteHeadings(text: string): string {
       }
       if (fence) return line
       const h = /^(\s{0,3})(#{1,6})(\s|$)/.exec(line)
-      return h ? `${h[1]}${'#'.repeat(Math.min(6, h[2]!.length + 3))}${line.slice(h[0].length - h[3]!.length)}` : line
+      if (!h) return line
+      const level = h[2]!.length + 3
+      const rest = line.slice(h[0].length - h[3]!.length)
+      // past h6 there is no level left: mark the heading so the page can set it apart
+      if (level > 6) return `${h[1]}######${rest.trim() ? ` <span class="h-deep"></span>${rest.slice(1)}` : rest}`
+      return `${h[1]}${'#'.repeat(level)}${rest}`
     })
     .join('\n')
 }

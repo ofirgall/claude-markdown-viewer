@@ -105,6 +105,13 @@
   }
 
   function enhanceCode(root) {
+    // each diagram is titled by the closest heading before it (not the hidden turn heading)
+    const titles = new Map();
+    let last = '';
+    root.querySelectorAll('h1,h2,h3,h4,h5,h6,pre > code.language-mermaid').forEach(el => {
+      if (el.tagName === 'CODE') titles.set(el, last);
+      else if (!el.matches('.turn-body>h2')) last = el.textContent.trim();
+    });
     root.querySelectorAll('pre > code').forEach(code => {
       const pre = code.parentElement;
       const lang = (/language-(\S+)/.exec(code.className) || [])[1];
@@ -112,6 +119,7 @@
         const block = document.createElement('div');
         block.className = 'mermaid-block';
         block.dataset.source = code.textContent;
+        if (titles.get(code)) block.dataset.title = titles.get(code);
         pre.replaceWith(block);
         return;
       }
@@ -381,7 +389,14 @@
     btn('⟲', 'Reset', reset);
     if (full) btn('✕', 'Close (Esc or double-click)', closeDiagram);
     else btn('⛶', 'Full screen (or double-click)', () => openDiagram(block));
-    block.replaceChildren(stage, tools);
+    const title = !full && block.dataset.title;
+    if (title) {
+      const cap = document.createElement('div');
+      cap.className = 'mmd-title';
+      cap.textContent = cap.title = title;
+      block.replaceChildren(cap, stage, tools);
+      block.classList.add('has-title');
+    } else block.replaceChildren(stage, tools);
     block.classList.add('mmd-pz');
     block.title = `Drag to pan · ${scrollHint} to zoom · double-click to ${full ? 'close' : 'open full screen'}`;
 
@@ -463,6 +478,17 @@
 
     const list = turnDiagrams();
     const at = list.indexOf(inline);
+    if (list.length > 1 || inline.dataset.title) {
+      const count = document.createElement('div');
+      count.className = 'mmd-count';
+      if (inline.dataset.title) {
+        const t = document.createElement('b');
+        t.textContent = inline.dataset.title;
+        count.append(t);
+      }
+      if (list.length > 1) count.append(`Diagram ${at + 1} / ${list.length}`);
+      block.append(count);
+    }
     if (list.length > 1) {
       const nav = (cls, label, title, d) => {
         const b = document.createElement('button');
@@ -475,10 +501,6 @@
       };
       nav('prev', '‹', 'Previous diagram (←)', -1);
       nav('next', '›', 'Next diagram (→)', 1);
-      const count = document.createElement('div');
-      count.className = 'mmd-count';
-      count.textContent = `Diagram ${at + 1} / ${list.length}`;
-      block.append(count);
     }
   }
   function closeDiagram() {

@@ -7,7 +7,7 @@
   --scroll-thumb:rgba(148,163,184,.35);--accent:#58a6ff;
   --badge-bg:rgba(255,255,255,.06);--badge-fg:#8b949e;
   --skeleton:rgba(255,255,255,.04);--skeleton-shine:rgba(255,255,255,.08);
-  --color-h1:#58a6ff;--color-h2:#a371f7;--color-h3:#3fb950;--color-h4:#39d2c0;
+  --color-h1:#58a6ff;--color-h2:#a371f7;--color-h3:#3fb950;--color-h4:#39d2c0;--color-h5:#e3b341;--color-h6:#56d364;
   --color-note:#4493f8;--color-tip:#3fb950;--color-important:#ab7df8;--color-warning:#d29922;--color-caution:#f85149;
   --user-bg:rgba(163,113,247,.07);--assistant-mark:#c4b5fd;--w:.7;
 }
@@ -19,7 +19,7 @@
   --scroll-thumb:rgba(100,116,139,.4);--accent:#0969da;
   --badge-bg:rgba(0,0,0,.04);--badge-fg:#656d76;
   --skeleton:rgba(0,0,0,.04);--skeleton-shine:rgba(0,0,0,.07);
-  --color-h1:#0969da;--color-h2:#8250df;--color-h3:#1a7f37;--color-h4:#0e8a7e;
+  --color-h1:#0969da;--color-h2:#8250df;--color-h3:#1a7f37;--color-h4:#0e8a7e;--color-h5:#9a6700;--color-h6:#1a7f37;
   --color-note:#0969da;--color-tip:#1a7f37;--color-important:#8250df;--color-warning:#9a6700;--color-caution:#d1242f;
   --user-bg:rgba(130,80,223,.06);--assistant-mark:#8250df;
 }
@@ -122,8 +122,14 @@ body.files-pin .files-panel{transform:none}
   font:inherit;font-size:.85em;font-weight:500;color:var(--user-mark,var(--accent,#8250df))}
 #content .prompt-more:hover{text-decoration:underline}
 #content h3{font-size:.95em;border-left:3px solid var(--color-h3);padding-left:.6em;margin:1.3em 0 .5em;color:var(--color-h3)}
-#content h4{font-size:1em;border-left:3px solid var(--color-h4);padding-left:.6em;margin:1.2em 0 .4em}
-#content :is(h5,h6){font-size:.875em;color:var(--fg-muted);padding-left:.6em;margin:1em 0 .4em}
+/* Claude's own headings land at h4-h6 (its #, ##, ### pushed below the turn
+   levels), so these carry the emphasis of a message's section titles */
+#content h4{font-size:1.25em;font-weight:700;border-left:3px solid var(--color-h4);padding-left:.6em;margin:1.4em 0 .6em;color:var(--color-h4)}
+#content h5{font-size:1.1em;font-weight:650;border-left:3px solid var(--color-h5);padding-left:.6em;margin:1.3em 0 .5em;color:var(--color-h5)}
+#content h6{font-size:1em;font-weight:600;border-left:3px solid var(--color-h6);
+  padding-left:.6em;margin:1.1em 0 .4em;color:var(--color-h6)}
+/* Claude's #### and deeper: no bar, smaller, still green */
+#content h6:has(.h-deep){font-size:.92em;border-left-color:transparent;margin:1em 0 .35em}
 #content p{margin:0 0 1em}
 /* each of Claude's messages, marked with a bullet as Claude Code marks them */
 #content .assistant-msg{position:relative;padding-left:1.5em;margin:0 0 1em}
@@ -224,6 +230,11 @@ body.files-pin .files-panel{transform:none}
 /* mermaid */
 .mermaid-block{position:relative;margin:1em 0;border:1px solid var(--stroke);border-radius:10px;background:var(--panel);overflow:auto;padding:1rem;display:flex;justify-content:center}
 .mermaid-block svg{max-width:100%;height:auto}
+/* the diagram's title: the closest heading before it */
+.mermaid-block.has-title{flex-direction:column}
+.mmd-title{align-self:stretch;margin:-.2rem 7.5rem .8rem 0;font-size:.85rem;font-weight:600;color:var(--fg);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:.45em}
+.mmd-title::before{content:"";flex-shrink:0;width:.5em;height:.5em;border-radius:2px;background:var(--color-h5)}
 .mermaid-block.mmd-pz{overflow:hidden;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .mermaid-block.mmd-dragging{cursor:grabbing}
 .mmd-stage{transform-origin:0 0;width:100%;display:flex;justify-content:center}
@@ -251,8 +262,9 @@ body.files-pin .files-panel{transform:none}
 .mmd-nav:hover:not(:disabled){opacity:1;background:var(--stroke)}
 .mmd-nav:disabled{opacity:.2;cursor:default}
 .mmd-nav.prev{left:.6rem} .mmd-nav.next{right:.6rem}
-.mmd-count{position:absolute;top:.85rem;left:1rem;z-index:3;font-size:.8rem;color:var(--fg-muted);
-  font-variant-numeric:tabular-nums;pointer-events:none}
+.mmd-count{position:absolute;top:.85rem;left:1rem;right:14rem;z-index:3;font-size:.8rem;color:var(--fg-muted);
+  font-variant-numeric:tabular-nums;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mmd-count b{color:var(--fg);font-weight:600;font-size:.95rem;margin-right:.6em}
 .mermaid-error{color:var(--err-fg);background:var(--err-bg);border:1px solid var(--err-border);border-radius:6px;padding:.4rem .8rem;font-size:.85rem}
 /* GitHub Alerts */
 #content .markdown-alert{padding:.5rem 1em;margin-bottom:16px;border-left:.25em solid #888;border-radius:0 6px 6px 0;background:var(--badge-bg);color:var(--fg)}

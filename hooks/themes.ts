@@ -60,7 +60,7 @@ function vars(p: Palette): string {
     'err-fg': p.red, 'err-bg': `color-mix(in srgb, ${p.red} 12%, transparent)`,
     'err-border': `color-mix(in srgb, ${p.red} 35%, transparent)`,
     'color-h1': p.blue, 'color-h2': p.purple, 'color-h3': p.green, 'color-h4': p.cyan,
-    'color-h5': p.yellow, 'color-h6': p.muted,
+    'color-h5': p.yellow, 'color-h6': p.green,
     'color-note': p.blue, 'color-tip': p.green, 'color-important': p.purple,
     'color-warning': p.yellow, 'color-caution': p.red,
     'user-bg': `color-mix(in srgb, ${p.purple} 8%, transparent)`, 'assistant-mark': p.purple,
