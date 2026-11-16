@@ -208,6 +208,14 @@ button.meta-chip{cursor:pointer;font-family:ui-monospace,SFMono-Regular,Menlo,mo
 .mmd-full svg{width:100%;height:100%;max-width:none;max-height:100%}
 .mmd-full .mmd-tools{opacity:1;top:.6rem;right:.6rem}
 @keyframes mmd-in{from{opacity:0}to{opacity:1}}
+.mmd-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:2.6rem;height:4rem;
+  border:1px solid var(--stroke);border-radius:10px;background:var(--panel);color:var(--fg);
+  font-size:1.8rem;line-height:1;cursor:pointer;opacity:.75;transition:opacity .15s,background .15s}
+.mmd-nav:hover:not(:disabled){opacity:1;background:var(--stroke)}
+.mmd-nav:disabled{opacity:.2;cursor:default}
+.mmd-nav.prev{left:.6rem} .mmd-nav.next{right:.6rem}
+.mmd-count{position:absolute;top:.85rem;left:1rem;z-index:3;font-size:.8rem;color:var(--fg-muted);
+  font-variant-numeric:tabular-nums;pointer-events:none}
 .mermaid-error{color:var(--err-fg);background:var(--err-bg);border:1px solid var(--err-border);border-radius:6px;padding:.4rem .8rem;font-size:.85rem}
 /* GitHub Alerts */
 #content .markdown-alert{padding:.5rem 1em;margin-bottom:16px;border-left:.25em solid #888;border-radius:0 6px 6px 0;background:var(--badge-bg);color:var(--fg)}

@@ -334,9 +334,9 @@
   });
   contentEl.addEventListener('toggle', () => updateNav(), true);
 
-  // ---- pan and zoom on each diagram: scrolling over it (or a pinch) zooms at
+  // ---- pan and zoom on each diagram: Ctrl/⌘ + scroll (or a pinch) zooms at
   // the pointer, a drag pans, the corner buttons zoom and reset, and a
-  // double-click resets. The view is kept per diagram source, so a live
+  // double-click opens it full screen (closes it there). The view is kept per diagram source, so a live
   // re-render of the turn doesn't lose it.
   const ZOOM_MIN = 0.2, ZOOM_MAX = 8, ZOOM_STEP = 1.25;
   const views = new Map();
@@ -372,27 +372,30 @@
     };
     const center = () => ({ px: stage.offsetWidth / 2, py: stage.offsetHeight / 2 });
     const reset = () => { v = { x: 0, y: 0, k: 1 }; apply(); };
-    btn('−', 'Zoom out (scroll)', () => { const c = center(); zoomAt(1 / ZOOM_STEP, c.px, c.py); });
-    const pct = btn('100%', 'Reset (or double-click the diagram)', reset);
+    const scrollHint = full ? 'scroll' : 'Ctrl + scroll';
+    btn('−', `Zoom out (${scrollHint})`, () => { const c = center(); zoomAt(1 / ZOOM_STEP, c.px, c.py); });
+    const pct = btn('100%', 'Reset', reset);
     pct.classList.add('mmd-pct');
-    btn('+', 'Zoom in (scroll)', () => { const c = center(); zoomAt(ZOOM_STEP, c.px, c.py); });
-    btn('⟲', 'Reset (or double-click the diagram)', reset);
-    if (full) btn('✕', 'Close (Esc)', closeDiagram);
-    else btn('⛶', 'Full screen', () => openDiagram(block.dataset.source, svgEl));
+    btn('+', `Zoom in (${scrollHint})`, () => { const c = center(); zoomAt(ZOOM_STEP, c.px, c.py); });
+    btn('⟲', 'Reset', reset);
+    if (full) btn('✕', 'Close (Esc or double-click)', closeDiagram);
+    else btn('⛶', 'Full screen (or double-click)', () => openDiagram(block));
     block.replaceChildren(stage, tools);
     block.classList.add('mmd-pz');
-    block.title = 'Drag to pan · scroll to zoom · double-click to reset';
+    block.title = `Drag to pan · ${scrollHint} to zoom · double-click to ${full ? 'close' : 'open full screen'}`;
 
     const local = e => {
       const r = block.getBoundingClientRect();
       return { px: e.clientX - r.left - stage.offsetLeft, py: e.clientY - r.top - stage.offsetTop };
     };
     block.addEventListener('wheel', e => {
+      // inline, plain scrolling scrolls the page; full screen, it zooms
+      if (!full && !e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const { px, py } = local(e);
-      // a mouse wheel's line steps are coarse, a pinch arrives as small ctrl+wheel steps
+      // a mouse wheel moves in big steps (~100px a notch), a pinch in many small ones
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-      zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.002)), px, py);
+      zoomAt(Math.exp(-dy * (Math.abs(dy) < 40 ? 0.01 : 0.002)), px, py);
     }, { passive: false });
     let drag = null;
     block.addEventListener('pointerdown', e => {
@@ -413,15 +416,32 @@
     };
     block.addEventListener('pointerup', end);
     block.addEventListener('pointercancel', end);
-    block.addEventListener('dblclick', e => { if (!e.target.closest('.mmd-tools')) reset(); });
+    // a double-click opens the diagram full screen, or closes it there
+    block.addEventListener('dblclick', e => {
+      if (e.target.closest('.mmd-tools, .mmd-nav')) return;
+      if (full) closeDiagram(); else openDiagram(block);
+    });
     apply();
   }
 
   // ---- a diagram full screen: a floating panel over the page, 95% of the
-  // window, with its own pan and zoom. Esc, ✕ or a click outside closes it.
+  // window, with its own pan and zoom. ‹ › (or ←/→) step to the turn's other
+  // diagrams; Esc, ✕ or a click outside closes it.
   let fullEl = null;
-  function openDiagram(source, svgEl) {
+  let fullSource = null;
+  const turnDiagrams = () => [...contentEl.querySelectorAll('.mermaid-block.mmd-pz')];
+  // the diagrams are found again on each step: a live re-render replaces them
+  function stepDiagram(d) {
+    const list = turnDiagrams();
+    const next = list[list.findIndex(b => b.dataset.source === fullSource) + d];
+    if (next) openDiagram(next);
+  }
+  function openDiagram(inline) {
+    const source = inline.dataset.source;
+    const svgEl = inline.querySelector('.mmd-stage svg');
+    if (!svgEl) return;
     closeDiagram();
+    fullSource = source;
     const backdrop = document.createElement('div');
     backdrop.className = 'mmd-overlay';
     const block = document.createElement('div');
@@ -439,6 +459,26 @@
     document.documentElement.classList.add('mmd-locked');
     fullEl = backdrop;
     panZoom(block, { full: true });
+
+    const list = turnDiagrams();
+    const at = list.indexOf(inline);
+    if (list.length > 1) {
+      const nav = (cls, label, title, d) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = `mmd-nav ${cls}`; b.textContent = label; b.title = title;
+        b.disabled = !list[at + d];
+        b.onclick = e => { e.stopPropagation(); stepDiagram(d); };
+        b.addEventListener('pointerdown', e => e.stopPropagation());
+        b.addEventListener('dblclick', e => e.stopPropagation());
+        block.append(b);
+      };
+      nav('prev', '‹', 'Previous diagram (←)', -1);
+      nav('next', '›', 'Next diagram (→)', 1);
+      const count = document.createElement('div');
+      count.className = 'mmd-count';
+      count.textContent = `Diagram ${at + 1} / ${list.length}`;
+      block.append(count);
+    }
   }
   function closeDiagram() {
     if (!fullEl) return;
@@ -717,7 +757,12 @@
 
   // ---- keys
   addEventListener('keydown', e => {
-    if (fullEl) { if (e.key === 'Escape') { e.preventDefault(); closeDiagram(); } return; }
+    if (fullEl) {
+      if (e.key === 'Escape') { e.preventDefault(); closeDiagram(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); stepDiagram(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); stepDiagram(1); }
+      return;
+    }
     const typing = e.target.closest('input,textarea');
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); openSearch(); return; }
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
