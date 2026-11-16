@@ -739,16 +739,12 @@
     dot.title = ok ? 'Live' : 'Disconnected (session ended?)';
   }
 
-  // the mod rewrites version.txt when the page's own files change: reload to pick them up
+  // data.js carries the version of the page's own files: when the mod
+  // rewrites them, reload to pick them up
   let pageVersion = null;
-  async function checkVersion() {
-    try {
-      const res = await fetch('version.txt', { cache: 'no-store' });
-      if (!res.ok) return;
-      const v = (await res.text()).trim();
-      if (pageVersion === null) pageVersion = v;
-      else if (v && v !== pageVersion) location.reload();
-    } catch { /* offline: poll() shows it */ }
+  function checkVersion(v) {
+    if (pageVersion === null) pageVersion = v;
+    else if (v && v !== pageVersion) location.reload();
   }
 
   // ---- the conversation's details (meta.json, written by the mod)
@@ -770,14 +766,11 @@
     return el;
   }
   let lastMetaText = null;
-  async function pollMeta() {
+  function showMeta(m) {
     try {
-      const res = await fetch('meta.json', { cache: 'no-store' });
-      if (!res.ok) return;
-      const text = await res.text();
-      if (text === lastMetaText) return;
+      const text = JSON.stringify(m ?? null);
+      if (text === lastMetaText || !m) return;
       lastMetaText = text;
-      const m = JSON.parse(text);
       const items = [];
       if (m.workspace) items.push(chip('span', 'meta-ws', 'ws', m.workspace.split('/').filter(Boolean).at(-1) || m.workspace, `Workspace: ${m.workspace}`));
       if (m.branch) {
@@ -802,18 +795,29 @@
     } catch { /* not there yet */ }
   }
 
+  // The page is opened as a file:// page, which can't fetch() files but can
+  // load scripts: the mod writes data.js (the conversation) and, every few
+  // seconds, alive.js (a heartbeat); each poll loads both again.
+  const ALIVE_STALE_MS = 15000;
+  let aliveAt = 0;
+  window.__mdpAlive = at => { aliveAt = at; };
+  window.__mdpData = d => {
+    checkVersion(d.version);
+    showMeta(d.meta);
+    if (d.md !== lastText) { lastText = d.md; applyText(d.md); }
+  };
+  function load(name) {
+    return new Promise(resolve => {
+      const el = document.createElement('script');
+      el.src = `${name}?t=${Date.now()}`;
+      el.onload = () => { el.remove(); resolve(true); };
+      el.onerror = () => { el.remove(); resolve(false); };
+      document.head.append(el);
+    });
+  }
   async function poll() {
-    checkVersion();
-    pollMeta();
-    try {
-      const res = await fetch('conversation.md', { cache: 'no-store' });
-      if (!res.ok) throw new Error(res.status);
-      const text = await res.text();
-      setStatus(true);
-      if (text !== lastText) { lastText = text; applyText(text); }
-    } catch {
-      setStatus(false);
-    }
+    const [ok] = await Promise.all([load('data.js'), load('alive.js')]);
+    setStatus(ok && Date.now() - aliveAt < ALIVE_STALE_MS);
     setTimeout(poll, POLL_MS);
   }
   poll();

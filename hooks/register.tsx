@@ -1,19 +1,22 @@
 import type { EngineInterface, PluginOptions, Register, SessionMessage } from 'claude-code'
 import { themeCss } from './themes'
 
-// Writes the conversation as Markdown to ~/.claude/markdown-preview/<session>/
-// and serves that folder with a local python http.server; the page in web/
-// (styled after github.com/ywsrock/nvim-md-preview) polls and re-renders it.
+// Writes the conversation as Markdown to ~/.claude/markdown-preview/<session>/,
+// along with data.js, which the page in web/ (styled after
+// github.com/ywsrock/nvim-md-preview), opened as a file:// page, reloads every
+// second and re-renders. A file:// page can't fetch() files but can load
+// scripts, so no server is needed.
 
 const COMMAND = 'markdown'
 const ASSETS = ['index.html', 'app.css', 'app.js']
 const TOOL_TEXT_MAX = 4000
 const INPUT_MAX = 2000
-const FILE_MAX = 3_800_000 // stay under $.fs.write's 4 MiB
+const FILE_MAX = 3_500_000 // data.js escapes it as JSON: stay under $.fs.write's 4 MiB
 const URL_COLOR = '#c4b5fd' // light, calm purple
+const ALIVE_MS = 5_000 // how often alive.js says the session is still running
 
 let dir: string | undefined
-let url: string | undefined
+let url: string | undefined // the page, as a file:// URL
 let lastWritten = ''
 let writing: Promise<void> = Promise.resolve()
 let home = ''
@@ -143,8 +146,8 @@ async function customCss($: EngineInterface): Promise<string> {
 // Copy the page's files into the served folder when they changed (edits to
 // web/ alone do not reload the module), along with theme.css from the mod's
 // settings and the user's custom.css, stamping index.html's links with the
-// version so the browser cannot keep a stale copy, and writing version.txt,
-// which the open page polls to reload itself.
+// version so the browser cannot keep a stale copy. data.js carries the
+// version too, so an open page reloads itself when it changes.
 let assetsVersion = ''
 async function syncAssets($: EngineInterface, target: string) {
   const files = await Promise.all(ASSETS.map(name => $.fs.read(`${$.plugin.root}/web/${name}`)))
@@ -161,7 +164,6 @@ async function syncAssets($: EngineInterface, target: string) {
     await $.fs.write(`${target}/${name}`, text)
   }
   for (const [name, text] of Object.entries(extra)) await $.fs.write(`${target}/${name}`, text)
-  await $.fs.write(`${target}/version.txt`, version)
   assetsVersion = version
 }
 
@@ -180,7 +182,7 @@ let meta: Meta | undefined
 let metaAt = 0
 let prKey = '' // branch the PR was looked up for, and when
 let prAt = 0
-let lastMeta = ''
+let lastMd = ''
 const META_MS = 5_000
 const PR_MS = 120_000
 
@@ -251,60 +253,16 @@ async function refresh($: EngineInterface) {
   writing = writing.then(async () => {
     await syncAssets($, target)
     const [messages, cwd, info] = await Promise.all([$.session.messages(), $.session.cwd(), readMeta($)])
-    const metaText = JSON.stringify(info)
-    if (metaText !== lastMeta) {
-      await $.fs.write(`${target}/meta.json`, metaText)
-      lastMeta = metaText
-    }
     const name = cwd.split('/').filter(Boolean).at(-1) ?? cwd
     const md = toMarkdown(messages, info.title || `Conversation · ${name}`)
-    if (md === lastWritten) return
-    await $.fs.write(`${target}/conversation.md`, md)
-    lastWritten = md
+    const data = `window.__mdpData(${JSON.stringify({ version: assetsVersion, meta: info, md })});\n`
+    if (data === lastWritten) return
+    await $.fs.write(`${target}/data.js`, data)
+    if (md !== lastMd) await $.fs.write(`${target}/conversation.md`, md)
+    lastWritten = data
+    lastMd = md
   }).catch(err => $.ui.log(`write failed: ${String(err)}`, { to: 'debug' }))
   await writing
-}
-
-const WATCHDOG_MS = 10_000
-let preferredPort = 0
-let serving = false
-let lastError = ''
-
-// Runs python's http.server on the session's folder for as long as it lives;
-// a second call while one runs does nothing.
-async function startServer($: EngineInterface) {
-  if (serving || !dir || !preferredPort) return
-  serving = true
-  try {
-    for (const port of [preferredPort, preferredPort, preferredPort, preferredPort, 0]) {
-      let bound = false
-      try {
-        const server = $.process.spawn({
-          argv: ['python3', '-u', '-m', 'http.server', String(port), '--bind', '127.0.0.1', '--directory', dir],
-        })
-        for await (const piece of server) {
-          if (!('text' in piece) || bound) continue
-          const found = /port (\d+)/.exec(piece.text)?.[1]
-          if (found) {
-            bound = true
-            lastError = ''
-            url = `http://127.0.0.1:${found}/`
-            $.ui.invalidate('ui.render')
-          }
-        }
-        if (!bound) lastError = `python3 http.server exited on port ${port}`
-      } catch (err) {
-        lastError = String(err)
-        $.ui.log(`server failed: ${lastError}`, { to: 'debug' })
-      }
-      if (bound) break // it ran and then ended: the module unloaded or it died
-      await $.clock.sleep(500)
-    }
-  } finally {
-    serving = false
-    url = undefined
-    $.ui.invalidate('ui.render')
-  }
 }
 
 export const register: Register = (on, options) => {
@@ -324,21 +282,24 @@ export const register: Register = (on, options) => {
     home = stdout.trim()
     dir = `${home}/.claude/markdown-preview/${id}`
     lastWritten = ''
+    lastMd = ''
     assetsVersion = ''
+    url = `file://${dir.split('/').map(encodeURIComponent).join('/')}/index.html`
+    $.ui.invalidate('ui.render')
 
     await syncAssets($, dir)
-    await $.fs.write(`${dir}/conversation.md`, '# Conversation\n\n_Waiting for the first turn…_\n')
     void refresh($)
 
-    // A port fixed per session, so the URL (and the page's saved settings,
-    // which are per origin) survive reloads. Right after a reload the old
-    // server may still hold it for a moment: retry, then fall back to any port.
-    preferredPort = 40000 + (hashOf(id) % 20000)
-
     // Long-lived work runs on the module's timers, not on this hook's
-    // dispatch: start the server now and keep checking that it is up.
-    $.clock.after(0, () => void startServer($))
-    $.clock.every(WATCHDOG_MS, () => void startServer($))
+    // dispatch: a heartbeat the page reads to tell a live session from an
+    // ended one.
+    const target = dir
+    const beat = async () => {
+      const now = await $.clock.now()
+      await $.fs.write(`${target}/alive.js`, `window.__mdpAlive(${now});\n`).catch(() => {})
+    }
+    void beat()
+    $.clock.every(ALIVE_MS, () => void beat())
 
     return started
   })
@@ -358,11 +319,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: COMMAND }, async $ => {
-    if (!url) {
-      void startServer($)
-      for (let i = 0; i < 20 && !url; i++) await $.clock.sleep(150)
-    }
-    if (!url) return { text: `The preview server is not running${lastError ? ` (${lastError})` : ''}.` }
+    if (!url) return { text: 'The preview is not set up yet: try again in a moment.' }
     await refresh($)
     await $.process.run(['open', url])
     return { text: `Opened ${url}` }
