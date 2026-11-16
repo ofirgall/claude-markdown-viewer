@@ -28,7 +28,7 @@ Requirements:
 
 - The page's title is the conversation's (its `/rename` title, else the one Claude Code generated). Beside it: the workspace, the git branch (linked to the repository), the branch's pull request when `gh` finds one, and the conversation's id (click to copy).
 - `/markdown` opens the page in your browser.
-- Diagrams pan and zoom: drag to pan, scroll (or pinch) over a diagram to zoom at the pointer, the corner buttons to zoom or reset, double-click to reset.
+- Diagrams pan and zoom: drag to pan, scroll (or pinch) over a diagram to zoom at the pointer, the corner buttons to zoom or reset, double-click to reset. ⛶ opens a diagram full screen in a floating panel (Esc, ✕ or a click outside closes it).
 
 The page shows one turn (a prompt and Claude's answer to it) at a time. That keeps it fast in long sessions: only the turn on screen is rendered, and it is re-rendered only when that turn changes. Each turn has previous / next buttons at its top and bottom, and the address ends in `#turn-N`, so a reload or a link opens the same turn.
 

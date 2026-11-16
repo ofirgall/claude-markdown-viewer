@@ -340,7 +340,7 @@
   // re-render of the turn doesn't lose it.
   const ZOOM_MIN = 0.2, ZOOM_MAX = 8, ZOOM_STEP = 1.25;
   const views = new Map();
-  function panZoom(block) {
+  function panZoom(block, { full = false } = {}) {
     const svgEl = block.querySelector('svg');
     if (!svgEl) return;
     const key = block.dataset.source;
@@ -377,6 +377,8 @@
     pct.classList.add('mmd-pct');
     btn('+', 'Zoom in (scroll)', () => { const c = center(); zoomAt(ZOOM_STEP, c.px, c.py); });
     btn('⟲', 'Reset (or double-click the diagram)', reset);
+    if (full) btn('✕', 'Close (Esc)', closeDiagram);
+    else btn('⛶', 'Full screen', () => openDiagram(block.dataset.source, svgEl));
     block.replaceChildren(stage, tools);
     block.classList.add('mmd-pz');
     block.title = 'Drag to pan · scroll to zoom · double-click to reset';
@@ -413,6 +415,36 @@
     block.addEventListener('pointercancel', end);
     block.addEventListener('dblclick', e => { if (!e.target.closest('.mmd-tools')) reset(); });
     apply();
+  }
+
+  // ---- a diagram full screen: a floating panel over the page, 95% of the
+  // window, with its own pan and zoom. Esc, ✕ or a click outside closes it.
+  let fullEl = null;
+  function openDiagram(source, svgEl) {
+    closeDiagram();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'mmd-overlay';
+    const block = document.createElement('div');
+    block.className = 'mermaid-block mmd-full';
+    block.dataset.source = `full:${source}`;
+    views.delete(block.dataset.source); // open fitted to the screen
+    const copy = svgEl.cloneNode(true);
+    copy.removeAttribute('height');
+    copy.setAttribute('width', '100%');
+    copy.style.maxWidth = 'none';
+    block.append(copy);
+    backdrop.append(block);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeDiagram(); });
+    document.body.append(backdrop);
+    document.documentElement.classList.add('mmd-locked');
+    fullEl = backdrop;
+    panZoom(block, { full: true });
+  }
+  function closeDiagram() {
+    if (!fullEl) return;
+    fullEl.remove();
+    fullEl = null;
+    document.documentElement.classList.remove('mmd-locked');
   }
 
   async function renderMermaid(root) {
@@ -685,6 +717,7 @@
 
   // ---- keys
   addEventListener('keydown', e => {
+    if (fullEl) { if (e.key === 'Escape') { e.preventDefault(); closeDiagram(); } return; }
     const typing = e.target.closest('input,textarea');
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); openSearch(); return; }
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;

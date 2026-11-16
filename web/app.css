@@ -198,6 +198,16 @@ button.meta-chip{cursor:pointer;font-family:ui-monospace,SFMono-Regular,Menlo,mo
   color:var(--fg-muted);font:inherit;font-size:.8rem;cursor:pointer}
 .mmd-tools button:hover{background:var(--stroke);color:var(--fg)}
 .mmd-tools .mmd-pct{font-variant-numeric:tabular-nums;min-width:3rem}
+/* a diagram full screen */
+.mmd-locked{overflow:hidden}
+.mmd-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+  background:rgba(1,4,9,.6);backdrop-filter:blur(2px);animation:mmd-in .12s ease-out}
+.mermaid-block.mmd-full{width:95vw;height:95vh;margin:0;padding:1.5rem;box-sizing:border-box;
+  box-shadow:0 12px 48px rgba(0,0,0,.45);align-items:center}
+.mmd-full .mmd-stage{height:100%;align-items:center}
+.mmd-full svg{width:100%;height:100%;max-width:none;max-height:100%}
+.mmd-full .mmd-tools{opacity:1;top:.6rem;right:.6rem}
+@keyframes mmd-in{from{opacity:0}to{opacity:1}}
 .mermaid-error{color:var(--err-fg);background:var(--err-bg);border:1px solid var(--err-border);border-radius:6px;padding:.4rem .8rem;font-size:.85rem}
 /* GitHub Alerts */
 #content .markdown-alert{padding:.5rem 1em;margin-bottom:16px;border-left:.25em solid #888;border-radius:0 6px 6px 0;background:var(--badge-bg);color:var(--fg)}
