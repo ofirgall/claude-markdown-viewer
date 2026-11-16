@@ -4,7 +4,7 @@ import type { EngineInterface, Register, SessionMessage } from 'claude-code'
 // and serves that folder with a local python http.server; the page in web/
 // (styled after github.com/ywsrock/nvim-md-preview) polls and re-renders it.
 
-const COMMAND = 'convo-preview'
+const COMMAND = 'markdown'
 const ASSETS = ['index.html', 'app.css', 'app.js']
 const TOOL_TEXT_MAX = 4000
 const INPUT_MAX = 2000

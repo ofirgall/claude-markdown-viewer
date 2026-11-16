@@ -22,30 +22,32 @@ In the desktop app, where `/plugin` does not run: click **+** next to the prompt
 
 Requirements:
 - `python3` on your PATH.
-- macOS for `/convo-preview` to open the browser itself (it uses `open`). On other systems, open the URL from the status line yourself.
+- macOS for `/markdown` to open the browser itself (it uses `open`). On other systems, open the URL from the status line yourself.
 - Internet access in the browser: the page loads marked, DOMPurify, highlight.js and mermaid from CDNs.
 
 ## Use
 
 - The status line shows the preview's address, `📄 http://127.0.0.1:<port>/`. The port is fixed for each session.
-- `/convo-preview` opens the page in your browser.
+- `/markdown` opens the page in your browser.
+
+The page shows one turn (a prompt and Claude's answer to it) at a time. That keeps it fast in long sessions: only the turn on screen is rendered, and it is re-rendered only when that turn changes. Each turn has previous / next buttons at its top and bottom, and the address ends in `#turn-N`, so a reload or a link opens the same turn.
 
 On the page:
 
 | Key | Action |
 | --- | --- |
-| `t` | Turns sidebar (one entry per prompt) |
-| `/` or `Ctrl+F` | Search |
-| `f` | Follow new messages (keeps the page scrolled to the bottom) |
+| `t` | Turns sidebar (one entry per prompt; click to open that turn) |
+| `/` or `Ctrl+F` | Search the turn on screen |
+| `f` | Follow: stay on the newest turn, scrolled to its end |
 | `e` | Expand or collapse all tool calls |
 | `w` | Cycle the content width: 50% → 70% → 95% (hover the ↔ button for a 50–100% slider) |
-| `j` / `k` | Next / previous turn |
-| `]` / `[` | Next / previous code block |
-| `}` / `{` | Next / previous diagram |
-| `g` / `G` | Top / bottom |
+| `j` / `k` (or `l` / `h`) | Next / previous turn |
+| `]` / `[` | Next / previous code block in the turn |
+| `}` / `{` | Next / previous diagram in the turn |
+| `g` / `G` | Top of the turn / newest turn's end |
 
 - Two or more tool calls in a row fold into one "N tool calls" group. Opening it shows each call, with its input and output, as its own collapsible block.
-- The sticky footer shows your position among turns, code blocks and diagrams, with buttons to step through them.
+- The sticky footer shows your position among turns, and among the code blocks and diagrams of the turn on screen, with buttons to step through them.
 - Mermaid code blocks render as diagrams, and `> [!NOTE]`-style alerts render as callout boxes.
 - Raw HTML in the conversation is sanitised with DOMPurify before display.
 - The page reloads itself when the mod's page files change.

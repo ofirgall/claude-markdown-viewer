@@ -131,6 +131,22 @@ header h1{margin:0;font-size:.9rem;font-weight:600;letter-spacing:.2px;flex:1;
 #content :is(h2,.code-wrap,.mermaid-block){scroll-margin-top:3.8rem;scroll-margin-bottom:4rem}
 .nav-flash{animation:navFlash 1.2s ease}
 @keyframes navFlash{0%,40%{outline:2px solid var(--accent);outline-offset:4px}100%{outline:2px solid transparent;outline-offset:4px}}
+/* prev / next turn bars at the top and bottom of the turn */
+.turn-nav{display:flex;align-items:center;gap:.6rem;margin:0 0 1.2rem}
+.turn-nav-bottom{margin:2.5rem 0 0;padding-top:1rem;border-top:1px solid var(--stroke)}
+.turn-nav-top .turn-nav-pos{margin-left:auto}
+.turn-nav-bottom .turn-nav-pos{margin-right:auto}
+.turn-nav-pos{flex-shrink:0;font-size:.75rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.5px;font-variant-numeric:tabular-nums}
+.turn-nav-btn{flex:1 1 auto;min-width:0;padding-top:.6rem!important;padding-bottom:.6rem!important;display:flex;align-items:center;gap:.5rem;padding:.45rem .75rem;
+  background:var(--panel);border:1px solid var(--stroke);border-radius:8px;color:var(--fg-muted);
+  font:inherit;font-size:.82rem;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.turn-nav-btn.next{justify-content:flex-end;text-align:right}
+.turn-nav-btn:hover:not(:disabled){color:var(--fg);border-color:var(--accent)}
+.turn-nav-btn:disabled{opacity:.35;cursor:default}
+.turn-nav-btn .tn-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.turn-nav-btn .tn-arrow{flex-shrink:0;color:var(--accent);font-weight:600}
+.turn-body>h2:first-child{margin-top:0}
+.turn-empty{color:var(--fg-muted)}
 /* sticky footer navigation */
 #navBar{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;justify-content:center;gap:1.2rem;flex-wrap:wrap;
   padding:.45rem 1rem;background:var(--panel);border-top:1px solid var(--stroke);

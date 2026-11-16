@@ -35,13 +35,21 @@
   };
 
   // ---- follow
-  function setFollow(on) {
+  // follow = stay on the newest turn, scrolled to its end
+  function setFollow(on, { noJump = false } = {}) {
     follow = on;
     store.set('cp-follow', on ? '1' : '0');
     $('followBtn').classList.toggle('active', on);
-    if (on) scrollTo({ top: document.body.scrollHeight });
+    if (!on || noJump) return;
+    if (turns.length && cur !== turns.length - 1) {
+      cur = turns.length - 1;
+      try { history.replaceState(null, '', `#turn-${cur + 1}`); } catch { /* ignore */ }
+      renderTurn();
+      markActiveToc();
+    }
+    scrollTo({ top: document.body.scrollHeight });
   }
-  setFollow(follow);
+  setFollow(follow, { noJump: true });
   $('followBtn').onclick = () => setFollow(!follow);
   addEventListener('wheel', e => { if (e.deltaY < 0 && follow) setFollow(false); }, { passive: true });
 
@@ -186,9 +194,77 @@
     flush();
   }
 
+  // ---- turns: the page shows one at a time
+  let turns = [];          // [{ title, md }]
+  let docTitle = 'Conversation';
+  let cur = -1;            // index of the turn on screen
+  let renderedKey = null;  // what is on screen, to skip identical re-renders
+
+  // Split the document at the mod's turn headings (`## N. …`), outside code fences.
+  function splitTurns(md) {
+    const out = [];
+    let title = 'Conversation';
+    let fence = null;
+    let current = null;
+    for (const line of md.split('\n')) {
+      const open = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+      if (open) {
+        if (!fence) fence = open[1];
+        else if (open[1][0] === fence[0] && open[1].length >= fence.length) fence = null;
+      } else if (!fence) {
+        const h1 = /^# (.+)$/.exec(line);
+        if (h1 && !current) { title = h1[1].trim(); continue; }
+        const h2 = /^## (\d+\..*)$/.exec(line);
+        if (h2) { current = { title: h2[1].trim(), lines: [line] }; out.push(current); continue; }
+      }
+      if (current) current.lines.push(line);
+    }
+    return { title, turns: out.map(t => ({ title: t.title, md: t.lines.join('\n') })) };
+  }
+
+  function goTurn(i, { toBottom = false } = {}) {
+    if (!turns.length) return;
+    i = Math.max(0, Math.min(turns.length - 1, i));
+    if (i !== turns.length - 1 && follow) setFollow(false, { noJump: true });
+    cur = i;
+    try { history.replaceState(null, '', `#turn-${i + 1}`); } catch { /* ignore */ }
+    renderTurn();
+    scrollTo({ top: toBottom || follow ? document.body.scrollHeight : 0 });
+    updateNav();
+    markActiveToc();
+  }
+
+  function turnNavBar(where) {
+    const bar = document.createElement('div');
+    bar.className = `turn-nav turn-nav-${where}`;
+    const mk = (cls, label, title, target) => {
+      const b = document.createElement('button');
+      b.className = `turn-nav-btn ${cls}`;
+      b.disabled = target < 0 || target >= turns.length;
+      b.innerHTML = label;
+      if (!b.disabled) {
+        b.title = turns[target].title;
+        b.querySelector('.tn-title').textContent = turns[target].title;
+        b.onclick = () => goTurn(target);
+      }
+      return b;
+    };
+    const pos = document.createElement('span');
+    pos.className = 'turn-nav-pos';
+    pos.textContent = `Turn ${cur + 1} / ${turns.length}`;
+    // like a book: the way back at the top of the page, the way on at its foot
+    if (where === 'top') {
+      if (cur > 0) bar.append(mk('prev', '<span class="tn-arrow">←</span><span class="tn-title"></span>', 'Previous turn', cur - 1));
+      bar.append(pos);
+    } else {
+      bar.append(pos);
+      if (cur < turns.length - 1) bar.append(mk('next', '<span class="tn-title"></span><span class="tn-arrow">→</span>', 'Next turn', cur + 1));
+    }
+    return bar;
+  }
+
   // ---- footer navigation: turns, code blocks, diagrams
   const NAV = {
-    turn: () => [...contentEl.querySelectorAll('h2')],
     code: () => [...contentEl.querySelectorAll('.code-wrap')].filter(isShown),
     diagram: () => [...contentEl.querySelectorAll('.mermaid-block')].filter(isShown),
   };
@@ -212,6 +288,7 @@
   }
 
   function navigate(kind, dir) {
+    if (kind === 'turn') { goTurn(cur + dir); return; }
     const list = NAV[kind]();
     if (!list.length) return;
     const line = headerH() + 16;
@@ -228,6 +305,13 @@
 
   function updateNav() {
     for (const group of document.querySelectorAll('#navBar .nav-group')) {
+      if (group.dataset.kind === 'turn') {
+        group.classList.toggle('empty', !turns.length);
+        group.querySelector('.nav-pos').textContent = turns.length ? `${cur + 1}/${turns.length}` : '–';
+        group.querySelector('.nav-prev').disabled = cur <= 0;
+        group.querySelector('.nav-next').disabled = cur >= turns.length - 1;
+        continue;
+      }
       const list = NAV[group.dataset.kind]();
       const idx = currentIndex(list);
       group.classList.toggle('empty', !list.length);
@@ -271,33 +355,33 @@
     });
   }
 
-  // ---- TOC (one entry per user turn)
+  // ---- TOC (one entry per turn)
+  let tocKey = null;
   function buildToc() {
+    const key = turns.map(t => t.title).join('\n');
+    if (key === tocKey) return markActiveToc();
+    tocKey = key;
     const toc = $('toc');
-    const turns = [...contentEl.querySelectorAll('h2')];
     toc.innerHTML = turns.length ? '' : '<div class="toc-empty">No turns yet</div>';
-    turns.forEach(h => {
+    turns.forEach((t, i) => {
       const a = document.createElement('a');
-      a.href = `#${h.id}`;
-      a.textContent = h.firstChild ? h.firstChild.textContent : h.textContent;
-      a.title = a.textContent;
-      a.onclick = e => { e.preventDefault(); setFollow(false); h.scrollIntoView({ behavior: 'smooth' }); };
+      a.href = `#turn-${i + 1}`;
+      a.textContent = t.title;
+      a.title = t.title;
+      a.onclick = e => { e.preventDefault(); goTurn(i); };
       toc.appendChild(a);
     });
     markActiveToc();
   }
   function markActiveToc() {
-    const turns = [...contentEl.querySelectorAll('h2')];
-    let active = null;
-    for (const h of turns) if (h.getBoundingClientRect().top < 120) active = h;
-    $('toc').querySelectorAll('a').forEach(a => a.classList.toggle('active', !!active && a.getAttribute('href') === `#${active.id}`));
+    $('toc').querySelectorAll('a').forEach((a, i) => a.classList.toggle('active', i === cur));
   }
   let navQueued = false;
   addEventListener('scroll', () => {
-    markActiveToc();
     if (!navQueued) { navQueued = true; requestAnimationFrame(() => { navQueued = false; updateNav(); }); }
+    // reaching the bottom of the newest turn turns follow back on
     const atBottom = innerHeight + scrollY >= document.body.scrollHeight - 40;
-    if (atBottom && !follow) setFollow(true);
+    if (atBottom && !follow && cur === turns.length - 1) setFollow(true);
   }, { passive: true });
   $('tocBtn').onclick = () => { document.body.classList.toggle('toc-open'); store.set('cp-toc', document.body.classList.contains('toc-open') ? '1' : '0'); };
   if (store.get('cp-toc') === '1') document.body.classList.add('toc-open');
@@ -374,7 +458,9 @@
     else if (e.key === 'e') $('toolsBtn').click();
     else if (e.key === 'w') cycleWidth();
     else if (e.key === 'G') setFollow(true);
-    else if (e.key === 'g') { setFollow(false); scrollTo({ top: 0 }); }
+    else if (e.key === 'g') { setFollow(false, { noJump: true }); scrollTo({ top: 0 }); }
+    else if (e.key === 'h') navigate('turn', -1);
+    else if (e.key === 'l') navigate('turn', 1);
     else if (e.key === 'j') navigate('turn', 1);
     else if (e.key === 'k') navigate('turn', -1);
     else if (e.key === ']') navigate('code', 1);
@@ -383,37 +469,69 @@
     else if (e.key === '{') navigate('diagram', -1);
   });
 
-  // ---- render
-  function render(md, { keepScroll } = {}) {
-    const openKeys = new Set([...contentEl.querySelectorAll('details[open]')].map(detailsKey));
-    const y = scrollY;
-    const tmp = document.createElement('div');
-    tmp.innerHTML = DOMPurify.sanitize(marked.parse(md, { gfm: true, breaks: false }));
-    transformAlerts(tmp);
-    enhanceCode(tmp);
-    groupTools(tmp);
-    tmp.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
-    tmp.querySelectorAll('details').forEach(d => { if (openKeys.has(detailsKey(d)) || toolsOpen) d.open = true; });
-
-    contentEl.replaceChildren(...tmp.childNodes);
-    addAnchors(contentEl);
+  // ---- render: only the turn on screen
+  const openKeys = new Set();
+  function renderTurn({ force = false } = {}) {
     $('loadingSkeleton').style.display = 'none';
     contentEl.style.display = '';
+    if (!turns.length) {
+      renderedKey = null;
+      contentEl.innerHTML = '<p class="turn-empty">No turns yet.</p>';
+      return;
+    }
+    const turn = turns[cur];
+    const key = `${cur}/${turns.length}\n${turn.md}`;
+    if (!force && key === renderedKey) return;
 
-    const h1 = contentEl.querySelector('h1');
-    if (h1) { $('title').textContent = h1.firstChild.textContent; document.title = h1.firstChild.textContent; }
-    $('updated').textContent = `updated ${new Date().toLocaleTimeString()}`;
-    buildToc();
+    contentEl.querySelectorAll('details').forEach(d => {
+      if (d.open) openKeys.add(detailsKey(d)); else openKeys.delete(detailsKey(d));
+    });
+    const sameTurn = renderedKey !== null && renderedKey.startsWith(`${cur}/`);
+    const y = scrollY;
+    renderedKey = key;
+
+    const body = document.createElement('div');
+    body.className = 'turn-body';
+    body.innerHTML = DOMPurify.sanitize(marked.parse(turn.md, { gfm: true, breaks: false }));
+    transformAlerts(body);
+    enhanceCode(body);
+    groupTools(body);
+    body.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+    body.querySelectorAll('details').forEach(d => { if (openKeys.has(detailsKey(d)) || toolsOpen) d.open = true; });
+
+    contentEl.replaceChildren(turnNavBar('top'), body, turnNavBar('bottom'));
+    addAnchors(body);
+
     if (!$('searchBar').hidden && $('searchInput').value) runSearch($('searchInput').value, hitIdx);
-    renderMermaid(contentEl).then(() => {
-      if (follow && !keepScroll) scrollTo({ top: document.body.scrollHeight });
+    renderMermaid(body).then(() => {
+      if (follow) scrollTo({ top: document.body.scrollHeight });
       updateNav();
     });
-
-    if (follow && !keepScroll) scrollTo({ top: document.body.scrollHeight });
-    else scrollTo({ top: y });
+    if (follow) scrollTo({ top: document.body.scrollHeight });
+    else if (sameTurn) scrollTo({ top: y });
     updateNav();
   }
+
+  function applyText(md) {
+    const parsed = splitTurns(md);
+    turns = parsed.turns;
+    if (parsed.title !== docTitle || document.title !== parsed.title) {
+      docTitle = parsed.title;
+      $('title').textContent = docTitle;
+      document.title = docTitle;
+    }
+    if (cur < 0) {
+      const fromHash = /^#turn-(\d+)$/.exec(location.hash);
+      if (fromHash && Number(fromHash[1]) <= turns.length) { cur = Number(fromHash[1]) - 1; setFollow(false, { noJump: true }); }
+    }
+    if (follow || cur < 0 || cur >= turns.length) cur = turns.length - 1;
+    $('updated').textContent = `updated ${new Date().toLocaleTimeString()}`;
+    buildToc();
+    renderTurn();
+  }
+
+  // compatibility for callers that re-render everything (theme switch)
+  function render() { renderTurn({ force: true }); }
 
   function setStatus(ok) {
     const dot = $('statusDot');
@@ -441,7 +559,7 @@
       if (!res.ok) throw new Error(res.status);
       const text = await res.text();
       setStatus(true);
-      if (text !== lastText) { lastText = text; render(text); }
+      if (text !== lastText) { lastText = text; applyText(text); }
     } catch {
       setStatus(false);
     }
