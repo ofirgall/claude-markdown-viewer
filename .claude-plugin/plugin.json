@@ -1,0 +1,8 @@
+{
+  "name": "convo-preview",
+  "version": "0.2.0",
+  "description": "Live Markdown view of the Claude Code conversation in a browser previewer (styled after nvim-md-preview)",
+  "author": { "name": "Ofir Gal", "url": "https://github.com/ofirgall" },
+  "repository": "https://github.com/ofirgall/claude-markdown-viewer",
+  "license": "MIT"
+}
