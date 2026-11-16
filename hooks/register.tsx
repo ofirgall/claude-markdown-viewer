@@ -1,7 +1,7 @@
 import type { EngineInterface, PluginOptions, Register, SessionMessage } from 'claude-code'
 import { themeCss } from './themes'
 
-// Writes the conversation as Markdown to ~/.claude/convo-preview/<session>/
+// Writes the conversation as Markdown to ~/.claude/markdown-preview/<session>/
 // and serves that folder with a local python http.server; the page in web/
 // (styled after github.com/ywsrock/nvim-md-preview) polls and re-renders it.
 
@@ -132,11 +132,11 @@ const hashOf = (s: string) => {
 // empty when there is none.
 async function customCss($: EngineInterface): Promise<string> {
   const set = typeof settings.customCss === 'string' ? settings.customCss.trim() : ''
-  const path = set ? set.replace(/^~(?=\/)/, home) : `${home}/.claude/convo-preview/custom.css`
+  const path = set ? set.replace(/^~(?=\/)/, home) : `${home}/.claude/markdown-preview/custom.css`
   try {
     return await $.fs.read(path)
   } catch {
-    return set ? `/* convo-preview: could not read ${path.replace(/\*\//g, '')} */\n` : ''
+    return set ? `/* markdown-preview: could not read ${path.replace(/\*\//g, '')} */\n` : ''
   }
 }
 
@@ -261,7 +261,7 @@ async function refresh($: EngineInterface) {
     if (md === lastWritten) return
     await $.fs.write(`${target}/conversation.md`, md)
     lastWritten = md
-  }).catch(err => $.ui.log(`convo-preview: write failed: ${String(err)}`, { to: 'debug' }))
+  }).catch(err => $.ui.log(`markdown-preview: write failed: ${String(err)}`, { to: 'debug' }))
   await writing
 }
 
@@ -280,7 +280,7 @@ export const register: Register = (on, options) => {
       $.session.id(),
     ])
     home = stdout.trim()
-    dir = `${home}/.claude/convo-preview/${id}`
+    dir = `${home}/.claude/markdown-preview/${id}`
     lastWritten = ''
     assetsVersion = ''
 
@@ -312,7 +312,7 @@ export const register: Register = (on, options) => {
             }
           }
         } catch (err) {
-          $.ui.log(`convo-preview: server failed: ${String(err)}`, { to: 'debug' })
+          $.ui.log(`markdown-preview: server failed: ${String(err)}`, { to: 'debug' })
         }
         if (bound) break // it ran and then ended: the module unloaded or it died
         await $.clock.sleep(500)
@@ -339,7 +339,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: COMMAND }, async $ => {
-    if (!url) return { text: 'convo-preview: the preview server is not running yet.' }
+    if (!url) return { text: 'markdown-preview: the preview server is not running yet.' }
     await refresh($)
     await $.process.run(['open', url])
     return { text: `Opened ${url}` }

@@ -1,4 +1,4 @@
-// Live conversation preview. UI ported from nvim-md-preview
+// Live Markdown preview of the conversation. UI ported from nvim-md-preview
 // (https://github.com/ywsrock/nvim-md-preview, MIT): polls conversation.md and re-renders.
 (() => {
   const $ = id => document.getElementById(id);

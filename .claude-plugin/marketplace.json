@@ -2,5 +2,5 @@
   "name": "claude-markdown-viewer",
   "description": "Live Markdown view of the Claude Code conversation in your browser",
   "owner": { "name": "Ofir Gal", "url": "https://github.com/ofirgall" },
-  "plugins": [{ "name": "convo-preview", "source": "./" }]
+  "plugins": [{ "name": "markdown-preview", "source": "./" }]
 }

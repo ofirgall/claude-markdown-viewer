@@ -2,20 +2,20 @@
 
 A Claude Code mod that shows the current conversation as a live Markdown page in your browser. Its look is adapted from [nvim-md-preview](https://github.com/ywsrock/nvim-md-preview).
 
-After every tool call and at the end of every turn, the mod writes the conversation to `~/.claude/convo-preview/<session-id>/conversation.md`. It serves that folder on `127.0.0.1` with a small `python3 -m http.server`. The page checks the file every second and re-renders when it changes.
+After every tool call and at the end of every turn, the mod writes the conversation to `~/.claude/markdown-preview/<session-id>/conversation.md`. It serves that folder on `127.0.0.1` with a small `python3 -m http.server`. The page checks the file every second and re-renders when it changes.
 
 ## Install
 
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install convo-preview --marketplace ofirgall/claude-markdown-viewer
+/plugin install markdown-preview --marketplace ofirgall/claude-markdown-viewer
 ```
 
 Answer `y` to add the marketplace, then pick a scope. From a shell:
 
 ```
-claude plugin install convo-preview --marketplace ofirgall/claude-markdown-viewer
+claude plugin install markdown-preview --marketplace ofirgall/claude-markdown-viewer
 ```
 
 In the desktop app, where `/plugin` does not run: click **+** next to the prompt box, then **Plugins**, **Add marketplace** with `ofirgall/claude-markdown-viewer`, then **Add plugin**.
@@ -59,7 +59,7 @@ Set the mod's options in `/plugin` (Configure), or in `settings.json`:
 
 ```json
 "pluginConfigs": {
-  "convo-preview@claude-markdown-viewer": {
+  "markdown-preview@claude-markdown-viewer": {
     "options": {
       "theme": "github",
       "inlineCodeColor": "#cba6f7",
@@ -74,7 +74,7 @@ Set the mod's options in `/plugin` (Configure), or in `settings.json`:
 | `theme` | `github` | `github` (the original look; follows the system's light/dark mode), `github-dark-ofir` (`github` in dark mode with Claude Code's inline code `#cba6f7` and bold `#7a9cff`, and prompts on purple), `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-day`, `gruvbox-dark`, `gruvbox-light`, `rose-pine`, `rose-pine-dawn`, `dracula`, `nord`. The page's light/dark button switches to its counterpart. |
 | `inlineCodeColor` | theme | Text color of `` `inline code` ``. |
 | `strongColor` | theme | Text color of **bold** text. |
-| `customCss` | `~/.claude/convo-preview/custom.css` | A stylesheet loaded after all the others. It is re-read on every update, and the open page reloads when it changes. |
+| `customCss` | `~/.claude/markdown-preview/custom.css` | A stylesheet loaded after all the others. It is re-read on every update, and the open page reloads when it changes. |
 
 The page's colors are CSS variables (`--bg`, `--fg`, `--code-bg`, `--inline-code`, `--strong`, `--color-h1`…`--color-h6`, see `hooks/themes.ts`), so a custom stylesheet can override a few of them:
 
