@@ -1,4 +1,5 @@
-import type { EngineInterface, Register, SessionMessage } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register, SessionMessage } from 'claude-code'
+import { themeCss } from './themes'
 
 // Writes the conversation as Markdown to ~/.claude/convo-preview/<session>/
 // and serves that folder with a local python http.server; the page in web/
@@ -14,6 +15,8 @@ let dir: string | undefined
 let url: string | undefined
 let lastWritten = ''
 let writing: Promise<void> = Promise.resolve()
+let home = ''
+let settings: PluginOptions = {}
 
 const fence = (body: string, lang = '') => {
   const longest = Math.max(2, ...(body.match(/`+/g) ?? []).map(s => s.length))
@@ -117,21 +120,39 @@ const hashOf = (s: string) => {
   return h
 }
 
+// The user's own stylesheet, read fresh each sync so edits to it show up;
+// empty when there is none.
+async function customCss($: EngineInterface): Promise<string> {
+  const set = typeof settings.customCss === 'string' ? settings.customCss.trim() : ''
+  const path = set ? set.replace(/^~(?=\/)/, home) : `${home}/.claude/convo-preview/custom.css`
+  try {
+    return await $.fs.read(path)
+  } catch {
+    return set ? `/* convo-preview: could not read ${path.replace(/\*\//g, '')} */\n` : ''
+  }
+}
+
 // Copy the page's files into the served folder when they changed (edits to
-// web/ alone do not reload the module), stamping index.html's links with the
+// web/ alone do not reload the module), along with theme.css from the mod's
+// settings and the user's custom.css, stamping index.html's links with the
 // version so the browser cannot keep a stale copy, and writing version.txt,
 // which the open page polls to reload itself.
 let assetsVersion = ''
 async function syncAssets($: EngineInterface, target: string) {
   const files = await Promise.all(ASSETS.map(name => $.fs.read(`${$.plugin.root}/web/${name}`)))
-  const version = hashOf(files.join('\0')).toString(36)
+  const extra: Record<string, string> = {
+    'theme.css': themeCss(settings),
+    'custom.css': await customCss($),
+  }
+  const version = hashOf([...files, ...Object.values(extra)].join('\0')).toString(36)
   if (version === assetsVersion) return
   for (const [i, name] of ASSETS.entries()) {
     const text = name === 'index.html'
-      ? files[i]!.replace(/(href|src)="(app\.(?:css|js))"/g, `$1="$2?v=${version}"`)
+      ? files[i]!.replace(/(href|src)="((?:app|theme|custom)\.(?:css|js))"/g, `$1="$2?v=${version}"`)
       : files[i]!
     await $.fs.write(`${target}/${name}`, text)
   }
+  for (const [name, text] of Object.entries(extra)) await $.fs.write(`${target}/${name}`, text)
   await $.fs.write(`${target}/version.txt`, version)
   assetsVersion = version
 }
@@ -151,7 +172,8 @@ async function refresh($: EngineInterface) {
   await writing
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  settings = options ?? {}
   on('session.start', async ($, e, next) => {
     const started = await next(e)
 
@@ -160,11 +182,12 @@ export const register: Register = on => {
       description: 'Open the live Markdown preview of this conversation in the browser',
     })
 
-    const [{ stdout: home }, id] = await Promise.all([
+    const [{ stdout }, id] = await Promise.all([
       $.process.run(['printenv', 'HOME']),
       $.session.id(),
     ])
-    dir = `${home.trim()}/.claude/convo-preview/${id}`
+    home = stdout.trim()
+    dir = `${home}/.claude/convo-preview/${id}`
     lastWritten = ''
     assetsVersion = ''
 

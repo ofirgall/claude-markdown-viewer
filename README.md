@@ -52,6 +52,36 @@ On the page:
 - Raw HTML in the conversation is sanitised with DOMPurify before display.
 - The page reloads itself when the mod's page files change.
 
+## Theme
+
+Set the mod's options in `/plugin` (Configure), or in `settings.json`:
+
+```json
+"pluginConfigs": {
+  "convo-preview@claude-markdown-viewer": {
+    "options": {
+      "theme": "github",
+      "inlineCodeColor": "#cba6f7",
+      "strongColor": "#7a9cff"
+    }
+  }
+}
+```
+
+| Option | Default | |
+| --- | --- | --- |
+| `theme` | `github` | `github` (the original look; follows the system's light/dark mode), `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-day`, `gruvbox-dark`, `gruvbox-light`, `rose-pine`, `rose-pine-dawn`, `dracula`, `nord`. The page's light/dark button switches to its counterpart. |
+| `inlineCodeColor` | theme | Text color of `` `inline code` ``. |
+| `strongColor` | theme | Text color of **bold** text. |
+| `customCss` | `~/.claude/convo-preview/custom.css` | A stylesheet loaded after all the others. It is re-read on every update, and the open page reloads when it changes. |
+
+The page's colors are CSS variables (`--bg`, `--fg`, `--code-bg`, `--inline-code`, `--strong`, `--color-h1`…`--color-h6`, see `hooks/themes.ts`), so a custom stylesheet can override a few of them:
+
+```css
+:root { --inline-code: #f5c2e7; }
+#content h2 { border-bottom: none; }
+```
+
 ## Develop
 
 ```

@@ -1,8 +1,50 @@
 {
   "name": "convo-preview",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Live Markdown view of the Claude Code conversation in a browser previewer (styled after nvim-md-preview)",
-  "author": { "name": "Ofir Gal", "url": "https://github.com/ofirgall" },
+  "author": {
+    "name": "Ofir Gal",
+    "url": "https://github.com/ofirgall"
+  },
   "repository": "https://github.com/ofirgall/claude-markdown-viewer",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "theme": {
+      "type": "string",
+      "title": "Theme",
+      "description": "Color palette of the preview page. github is the original look and follows the system's light/dark mode; the page's light/dark button switches any theme to its counterpart.",
+      "default": "github",
+      "options": [
+        "github",
+        "catppuccin-mocha",
+        "catppuccin-latte",
+        "tokyo-night",
+        "tokyo-day",
+        "gruvbox-dark",
+        "gruvbox-light",
+        "rose-pine",
+        "rose-pine-dawn",
+        "dracula",
+        "nord"
+      ]
+    },
+    "inlineCodeColor": {
+      "type": "string",
+      "title": "Inline code",
+      "description": "Text color of `inline code`, e.g. #cba6f7. Empty uses the theme.",
+      "default": ""
+    },
+    "strongColor": {
+      "type": "string",
+      "title": "Bold",
+      "description": "Text color of **bold** text, e.g. #7a9cff. Empty uses the theme.",
+      "default": ""
+    },
+    "customCss": {
+      "type": "string",
+      "title": "Custom CSS",
+      "description": "Path of a CSS file loaded after the built-in styles. Empty uses ~/.claude/convo-preview/custom.css when it exists.",
+      "default": ""
+    }
+  }
 }

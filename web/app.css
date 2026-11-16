@@ -70,7 +70,7 @@ header h1{margin:0;font-size:.9rem;font-weight:600;letter-spacing:.2px;flex:1;
 #content p{margin:0 0 1em}
 #content a{color:var(--link);text-decoration:none}
 #content a:hover{text-decoration:underline}
-#content strong{font-weight:600}
+#content strong{font-weight:600;color:var(--strong,inherit)}
 #content img{max-width:100%;border-radius:6px}
 #content hr{height:3px;background:var(--stroke);border:none;margin:1.5em 0}
 #content :is(ul,ol){padding-left:2em;margin:0 0 1em}
@@ -81,11 +81,11 @@ header h1{margin:0;font-size:.9rem;font-weight:600;letter-spacing:.2px;flex:1;
 #content :is(th,td){padding:.5em .8em;border:1px solid var(--table-border)}
 #content th{background:var(--panel);font-weight:600}
 #content tr:nth-child(even){background:var(--table-row-alt)}
-#content code{background:var(--code-bg);padding:.15em .35em;border-radius:4px;
+#content code{background:var(--code-bg);color:var(--inline-code,inherit);padding:.15em .35em;border-radius:4px;
   font-size:.88em;font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
 #content pre{position:relative;background:var(--code-bg);border:1px solid var(--stroke);
   border-radius:8px;padding:1em;overflow-x:auto;margin:0 0 1em;scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
-#content pre code{background:none;padding:0;border-radius:0;font-size:.85em;line-height:1.55}
+#content pre code{background:none;color:inherit;padding:0;border-radius:0;font-size:.85em;line-height:1.55}
 #content pre code.hljs{background:none;padding:0}
 .code-wrap{position:relative;margin:0 0 1em}
 .code-wrap pre{margin:0!important}

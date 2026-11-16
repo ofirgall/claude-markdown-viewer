@@ -25,11 +25,17 @@
     $('hljs-theme').href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github${theme === 'dark' ? '-dark' : ''}.min.css`;
     if (window.mermaid) mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default', securityLevel: 'strict' });
   }
-  const initialTheme = store.get('cp-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  // theme.css (from the mod's settings) names the configured palette and its mode;
+  // a toggle is remembered per configured palette, so changing it starts fresh
+  const rootStyle = getComputedStyle(document.documentElement);
+  const configured = rootStyle.getPropertyValue('--configured-theme').trim() || 'default';
+  const themeKey = `cp-theme:${configured}`;
+  const initialTheme = store.get(themeKey) || rootStyle.getPropertyValue('--configured-mode').trim()
+    || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
   applyTheme(initialTheme);
   $('themeBtn').onclick = () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    store.set('cp-theme', next);
+    store.set(themeKey, next);
     applyTheme(next);
     if (lastText !== null) render(lastText, { keepScroll: true });
   };
