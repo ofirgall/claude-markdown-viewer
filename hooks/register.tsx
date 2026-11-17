@@ -19,6 +19,7 @@ let lastWritten = ''
 let writing: Promise<void> = Promise.resolve()
 let home = ''
 let settings: PluginOptions = {}
+let pollTimer: { cancel: () => void } | undefined
 
 const fence = (body: string, lang = '') => {
   const longest = Math.max(2, ...(body.match(/`+/g) ?? []).map(s => s.length))
@@ -198,7 +199,8 @@ async function customCss($: EngineInterface): Promise<string> {
 // version too, so an open page reloads itself when it changes.
 let assetsVersion = ''
 async function syncAssets($: EngineInterface, target: string) {
-  const files = await Promise.all(ASSETS.map(name => $.fs.read(`${$.plugin.root}/web/${name}`)))
+  const root = await newestRoot($)
+  const files = await Promise.all(ASSETS.map(name => $.fs.read(`${root}/web/${name}`)))
   const extra: Record<string, string> = {
     'theme.css': themeCss(settings),
     'custom.css': await customCss($),
@@ -213,6 +215,32 @@ async function syncAssets($: EngineInterface, target: string) {
   }
   for (const [name, text] of Object.entries(extra)) await $.fs.write(`${target}/${name}`, text)
   assetsVersion = version
+}
+
+// The page's files come from the newest version of the plugin installed next
+// to the running one (cache/<marketplace>/markdown-preview/<version>/), so an
+// update reaches an open page without restarting the session. A plugin loaded
+// from a folder that is not a version (a local checkout) uses its own files.
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/
+const semver = (v: string) => (SEMVER.exec(v) ?? []).slice(1).map(Number)
+const newer = (a: string, b: string) => {
+  const [x, y] = [semver(a), semver(b)]
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! > y[i]!
+  return false
+}
+async function newestRoot($: EngineInterface): Promise<string> {
+  const root = $.plugin.root.replace(/\/+$/, '')
+  const cut = root.lastIndexOf('/')
+  const parent = root.slice(0, cut)
+  let best = root.slice(cut + 1)
+  if (!SEMVER.test(best)) return root
+  try {
+    for (const entry of await $.fs.list(parent)) {
+      if (entry.kind !== 'dir' || !SEMVER.test(entry.name) || !newer(entry.name, best)) continue
+      if (await $.fs.exists(`${parent}/${entry.name}/web/app.js`)) best = entry.name
+    }
+  } catch { return root }
+  return `${parent}/${best}`
 }
 
 // ---- the conversation's details for the page's header: its title, id,
@@ -339,6 +367,13 @@ export const register: Register = (on, options) => {
 
     await syncAssets($, dir)
     void refresh($)
+    // pick up a newer installed version (or edits to web/) while idle; the
+    // page reloads itself when data.js names new files
+    pollTimer?.cancel()
+    pollTimer = $.clock.every(5000, () => {
+      const before = assetsVersion
+      void syncAssets($, dir!).then(() => { if (assetsVersion !== before) void refresh($) }, () => {})
+    })
 
     return started
   })

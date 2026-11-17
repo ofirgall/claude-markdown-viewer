@@ -12,7 +12,7 @@ A Claude Code mod that shows the current conversation as a live Markdown page in
 
 Or from a shell: `claude plugin install markdown-preview --marketplace ofirgall/claude-markdown-viewer`. In the desktop app: **+** → **Plugins** → **Add marketplace** `ofirgall/claude-markdown-viewer` → **Add plugin**.
 
-`/markdown` opens the browser with macOS `open`; elsewhere, open the address it prints. The page loads its libraries (marked, DOMPurify, highlight.js, mermaid) from CDNs.
+`/markdown` opens the browser with macOS `open`; elsewhere, open the address it prints. The page loads its libraries (marked, DOMPurify, highlight.js, mermaid) from CDNs. After you update the plugin, open pages switch to the new version within a few seconds, without restarting the session.
 
 ## Use
 
