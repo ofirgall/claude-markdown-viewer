@@ -559,10 +559,47 @@
         if (svgEl) fixContrast(svgEl);
         panZoom(block);
       } catch (err) {
-        block.innerHTML = '<div class="mermaid-error"></div>';
-        block.firstChild.textContent = String(err && err.message || err).split('\n')[0];
+        showMermaidError(block, String(err && err.message || err));
       }
     }
+  }
+
+  // A diagram that fails to parse shows the full error and its source, the
+  // offending line marked, with a button that copies both (to paste into a prompt).
+  function showMermaidError(block, msg) {
+    const src = block.dataset.source;
+    const bad = +(/\bline (\d+)/i.exec(msg) || [])[1] || 0;
+    block.classList.add('mmd-failed');
+    block.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'mermaid-error';
+    const head = document.createElement('div');
+    head.className = 'mmd-err-head';
+    const title = document.createElement('span');
+    title.textContent = 'Mermaid error';
+    const btn = document.createElement('button');
+    btn.className = 'mmd-err-copy'; btn.title = 'Copy error and diagram source'; btn.innerHTML = COPY_ICON;
+    btn.onclick = async () => {
+      try { await navigator.clipboard.writeText(`Mermaid error:\n${msg}\n\n\`\`\`mermaid\n${src}\n\`\`\`\n`); } catch { return; }
+      btn.innerHTML = CHECK_ICON; btn.classList.add('copied');
+      setTimeout(() => { btn.innerHTML = COPY_ICON; btn.classList.remove('copied'); }, 1500);
+    };
+    head.append(title, btn);
+    const pre = document.createElement('pre');
+    pre.className = 'mmd-err-msg';
+    pre.textContent = msg;
+    const code = document.createElement('pre');
+    code.className = 'mmd-err-src';
+    src.replace(/\n$/, '').split('\n').forEach((text, i) => {
+      const row = document.createElement('div');
+      if (i + 1 === bad) row.className = 'bad';
+      const n = document.createElement('span');
+      n.className = 'ln'; n.textContent = i + 1;
+      row.append(n, text);
+      code.appendChild(row);
+    });
+    box.append(head, pre, code);
+    block.appendChild(box);
   }
 
   function addAnchors(root) {

@@ -265,7 +265,18 @@ body.files-pin .files-panel{transform:none}
 .mmd-count{position:absolute;top:.85rem;left:1rem;right:14rem;z-index:3;font-size:.8rem;color:var(--fg-muted);
   font-variant-numeric:tabular-nums;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mmd-count b{color:var(--fg);font-weight:600;font-size:.95rem;margin-right:.6em}
+.mermaid-block.mmd-failed{display:block;padding:.6rem}
 .mermaid-error{color:var(--err-fg);background:var(--err-bg);border:1px solid var(--err-border);border-radius:6px;padding:.4rem .8rem;font-size:.85rem}
+.mmd-err-head{display:flex;align-items:center;justify-content:space-between;font-weight:600;margin-bottom:.3rem}
+.mmd-err-copy{width:28px;height:28px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;
+  background:var(--panel);border:1px solid var(--stroke);border-radius:6px;color:var(--fg-muted)}
+.mmd-err-copy:hover{color:var(--fg);background:rgba(127,127,127,.15)}
+.mmd-err-copy.copied{color:#3fb950}
+.mermaid-error pre{margin:.4rem 0 0;padding:.5rem .7rem;border-radius:6px;background:var(--panel);color:var(--fg);
+  font-size:.8rem;line-height:1.45;overflow-x:auto;white-space:pre}
+.mermaid-error .mmd-err-msg{white-space:pre-wrap;overflow-wrap:anywhere}
+.mmd-err-src .ln{display:inline-block;min-width:2.2em;margin-right:.8em;text-align:right;color:var(--fg-muted);user-select:none}
+.mmd-err-src .bad{background:var(--err-bg);box-shadow:inset 3px 0 var(--err-border)}
 /* GitHub Alerts */
 #content .markdown-alert{padding:.5rem 1em;margin-bottom:16px;border-left:.25em solid #888;border-radius:0 6px 6px 0;background:var(--badge-bg);color:var(--fg)}
 #content .markdown-alert-title{display:flex;font-weight:500;align-items:center;line-height:1;margin-bottom:.5em;gap:.4em}
