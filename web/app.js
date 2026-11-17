@@ -511,12 +511,52 @@
     document.documentElement.classList.remove('mmd-locked');
   }
 
+  // A diagram can pick its own colors (a sequence `rect rgb(…)` block, a
+  // flowchart `style`/`classDef` fill) made for the other theme, and the
+  // theme's text over them is then unreadable: a background block keeps its
+  // hue as a faint tint, and a node's label takes a color that reads on its
+  // fill (unless the diagram set the label's color too).
+  const colorCtx = document.createElement('canvas').getContext('2d');
+  function parseColor(c) {
+    if (!c || c === 'none') return null;
+    colorCtx.fillStyle = '#010203';
+    colorCtx.fillStyle = c;
+    const v = colorCtx.fillStyle; // "#rrggbb" or "rgba(r, g, b, a)"
+    if (v === '#010203' && !/^#010203$/i.test(c.trim())) return null;
+    let r, g, b, a = 1;
+    if (v[0] === '#') [r, g, b] = [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16));
+    else [r, g, b, a] = v.match(/[\d.]+/g).map(Number);
+    const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+    return { lum: 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b), a };
+  }
+  function fixContrast(svg) {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    const clashes = c => c && c.a > 0.3 && (dark ? c.lum > 0.4 : c.lum < 0.1);
+    svg.querySelectorAll('rect.rect').forEach(r => {
+      if (clashes(parseColor(r.getAttribute('fill')))) r.setAttribute('fill-opacity', '0.14');
+    });
+    svg.querySelectorAll('.node').forEach(n => {
+      const shape = n.querySelector('rect, polygon, circle, ellipse, path');
+      const fill = shape && parseColor(getComputedStyle(shape).fill);
+      if (!clashes(fill)) return;
+      const text = fill.lum > 0.4 ? '#1f2328' : '#e6edf3';
+      n.querySelectorAll('.nodeLabel, .label foreignObject span, .label foreignObject div').forEach(l => {
+        if (!/(^|;)\s*color\s*:/.test(l.getAttribute('style') || '')) l.style.color = text;
+      });
+      n.querySelectorAll('text, tspan').forEach(t => {
+        if (!/(^|;)\s*fill\s*:/.test(t.getAttribute('style') || '')) t.style.fill = text;
+      });
+    });
+  }
+
   async function renderMermaid(root) {
     if (!window.mermaid) return;
     for (const block of root.querySelectorAll('.mermaid-block')) {
       try {
         const { svg } = await mermaid.render(`mmd-${++mermaidCounter}`, block.dataset.source);
         block.innerHTML = svg;
+        const svgEl = block.querySelector('svg');
+        if (svgEl) fixContrast(svgEl);
         panZoom(block);
       } catch (err) {
         block.innerHTML = '<div class="mermaid-error"></div>';
