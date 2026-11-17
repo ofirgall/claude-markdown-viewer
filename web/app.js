@@ -15,7 +15,9 @@
   };
 
   let lastText = null;
-  let follow = store.get('cp-follow') !== '0';
+  // the page opens at the top of the newest turn, to read it top to bottom;
+  // reaching its end (or a turn that fits on screen) turns follow on
+  let follow = false;
   let mermaidCounter = 0;
 
   // ---- theme
@@ -44,7 +46,6 @@
   // follow = stay on the newest turn, scrolled to its end
   function setFollow(on, { noJump = false } = {}) {
     follow = on;
-    store.set('cp-follow', on ? '1' : '0');
     $('followBtn').classList.toggle('active', on);
     if (!on || noJump) return;
     if (turns.length && cur !== turns.length - 1) {
@@ -912,10 +913,15 @@
       const fromHash = /^#turn-(\d+)$/.exec(location.hash);
       if (fromHash && Number(fromHash[1]) <= turns.length) { cur = Number(fromHash[1]) - 1; setFollow(false, { noJump: true }); }
     }
+    const opening = cur < 0;
     if (follow || cur < 0 || cur >= turns.length) cur = turns.length - 1;
     $('updated').textContent = `updated ${new Date().toLocaleTimeString()}`;
     buildToc();
     renderTurn();
+    if (opening) {
+      scrollTo({ top: 0 });
+      if (cur === turns.length - 1 && atPageBottom()) setFollow(true, { noJump: true });
+    }
   }
 
   // compatibility for callers that re-render everything (theme switch)

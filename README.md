@@ -16,7 +16,7 @@ Or from a shell: `claude plugin install markdown-preview --marketplace ofirgall/
 
 ## Use
 
-The page shows one turn (a prompt and its answer) at a time, live as it grows. The header has the conversation's title, workspace, git branch, pull request and id.
+The page shows one turn (a prompt and its answer) at a time, live as it grows. It opens at the top of the newest turn so you read it top to bottom; scrolling to its end (or `f`) follows it as it grows. The header has the conversation's title, workspace, git branch, pull request and id.
 
 - **Diagrams:** each is titled by the closest heading above it. Drag to pan, Ctrl/⌘ + scroll or pinch to zoom. ⛶ or a double-click opens one full screen, where ‹ › or ←/→ step through the turn's diagrams.
 - **Tool calls** in a row fold into one group; each call opens to its input and output.
